@@ -29,10 +29,10 @@ Adafruit_NeoMatrix matrix5x5(5, 5, PIN,
                                  NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
                              NEO_GRB + NEO_KHZ800);
 
-char* matrix5x5Message;
+char *matrix5x5Message;
 const uint16_t colors[] = {
     matrix5x5.Color(255, 60, 0), matrix5x5.Color(255, 120, 0), matrix5x5.Color(255, 255, 0)};
-uint16_t message_width;     // Computed in setup() below
+uint16_t message_width;               // Computed in setup() below
 int matrix5x5_x = matrix5x5.width();  // Start with message off right edge
 int matrix5x5_y = matrix5x5.height(); // With custom fonts, y is the baseline, not top
 int matrix5x5_pass = 0;               // Counts through the colors[] array
@@ -45,14 +45,12 @@ uint8_t sweep[] = {1, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 60, 40, 30, 20, 15,
 
 ///////////////
 Adafruit_IS31FL3741_QT matrix9x13 = Adafruit_IS31FL3741_QT();
-char text[] = "Stella and Beau!"; // A message to scroll
-int text_x = matrix9x13.width();  // Initial text position = off right edge
+char *matrix9x13Message;
+int text_x = matrix9x13.width(); // Initial text position = off right edge
 int text_y = 1;
 int text_min; // Pos. where text resets (calc'd later)
 uint16_t hue_offset = 0;
 ///////////////
-
-
 
 ///////////////
 #define LED_COUNT 64
@@ -73,12 +71,12 @@ void Matrix5x5Task(void *parameters)
 {
   while (1)
   {
-    matrix5x5.fillScreen(0);   // Erase message in old position.
+    matrix5x5.fillScreen(0);                       // Erase message in old position.
     matrix5x5.setCursor(matrix5x5_x, matrix5x5_y); // Set new cursor position,
-    matrix5x5.print(matrix5x5Message);  // draw the message
-    matrix5x5.show();          // and update the matrix.
+    matrix5x5.print(matrix5x5Message);             // draw the message
+    matrix5x5.show();                              // and update the matrix.
     if (--matrix5x5_x < -message_width)
-    {                        // Move 1 pixel left. Then, if scrolled off left...
+    {                                  // Move 1 pixel left. Then, if scrolled off left...
       matrix5x5_x = matrix5x5.width(); // reset position off right edge and
       if (++matrix5x5_pass >= 3)
         matrix5x5_pass = 0; // increment color in list, rolling over if needed.
@@ -125,11 +123,10 @@ void Matrix9x16Setup()
 {
   if (!matrix9x16.begin())
   {
-    Serial.println("IS31 not found");
-    while (1)
-      ;
+    Serial.println("9x16 not found");
+    return;
   }
-  Serial.println("IS31 found!");
+  Serial.println("9x16 found!");
 
   xTaskCreate(Matrix9x16Task, "Matrix9x16Task", 4096, NULL, 10, &matrix9x16TaskHandle);
 }
@@ -139,13 +136,13 @@ void Matrix9x13Task(void *parameters)
   while (1)
   {
     matrix9x13.setCursor(text_x, text_y);
-    for (int i = 0; i < (int)strlen(text); i++)
+    for (int i = 0; i < (int)strlen(matrix9x13Message); i++)
     {
       // set the color thru the rainbow
-      uint32_t color888 = matrix9x13.ColorHSV(65536 * i / strlen(text));
+      uint32_t color888 = matrix9x13.ColorHSV(65536 * i / strlen(matrix9x13Message));
       uint16_t color565 = matrix9x13.color565(color888);
-      matrix9x13.setTextColor(color565, 0); // backound is '0' to erase previous text!
-      matrix9x13.print(text[i]);            // write the letter
+      matrix9x13.setTextColor(color565, 0);   // backound is '0' to erase previous text!
+      matrix9x13.print(matrix9x13Message[i]); // write the letter
     }
 
     if (--text_x < text_min)
@@ -175,13 +172,15 @@ void Matrix9x13Task(void *parameters)
 
 void Matrix9x13Setup()
 {
+  matrix9x13Message = new char[100];
+  strcpy(matrix9x13Message, "STELLA IS BELLA!");
+
   if (!matrix9x13.begin(IS3741_ADDR_DEFAULT))
   {
-    Serial.println("IS41 not found");
-    while (1)
-      ;
+    Serial.println("9x13 not found");
+    return;
   }
-  Serial.println("IS41 found!");
+  Serial.println("9x13 found!");
 
   // Set brightness to max and bring controller out of shutdown state
   matrix9x13.setLEDscaling(0xFF);
@@ -194,7 +193,7 @@ void Matrix9x13Setup()
   // Get text dimensions to determine X coord where scrolling resets
   uint16_t w, h;
   int16_t ignore;
-  matrix9x13.getTextBounds(text, 0, 0, &ignore, &ignore, &w, &h);
+  matrix9x13.getTextBounds(matrix9x13Message, 0, 0, &ignore, &ignore, &w, &h);
   text_min = -w; // Off left edge this many pixels
 
   xTaskCreate(Matrix9x13Task, "Matrix9x13Task", 4096, NULL, 10, &matrix9x13TaskHandle);
@@ -222,7 +221,13 @@ void Matrix8x8Task(void *parameters)
 
 void Matrix8x8Setup()
 {
-  matrix8x8.begin(0x70);
+  if (!matrix8x8.begin(0x70))
+  {
+    Serial.println("8x8 not found");
+    return;
+  }
+  Serial.println("8x8 found!");
+
   matrix8x8.setBrightness(5);
 
   randomSeed(analogRead(0));
@@ -244,7 +249,7 @@ void otaSetup()
 
   // ArduinoOTA.setPort(3232);
   ArduinoOTA.setHostname("I2C-LED-Controller");
-  ArduinoOTA.setPasswordHash("d5aa78e4cc65133dffb98c32605ff9d1"); // password
+  // ArduinoOTA.setPasswordHash("d5aa78e4cc65133dffb98c32605ff9d1"); // password
 
   ArduinoOTA
       .onStart([]()
@@ -275,7 +280,6 @@ void otaSetup()
           Serial.println("End Failed"); });
   ArduinoOTA.begin();
 
-
   Serial.println("OTA setup complete.");
 }
 
@@ -290,7 +294,7 @@ void mDnsSetup()
   Serial.println("mDNS responder started");
 
   // TODO: OTA service?
-  //MDNS.addService("http", "tcp", 80);
+  // MDNS.addService("http", "tcp", 80);
 }
 
 void wifiSetup()
@@ -343,23 +347,29 @@ void restIndex()
   Serial.println("Served index.html");
 }
 
-void restSet5x5MatrixMessage()
+void restSetMessage(char *message)
 {
-  if (!restServer.hasArg("messasge"))
+  if (!restServer.hasArg("message"))
   {
     restServer.send(400, "text/plain", "No message provided");
     Serial.println("No message provided");
     return;
   }
 
-  String message = restServer.arg("value");
-  message = message.substring(0, 100);
-  strcpy(matrix5x5Message, message.c_str());
+  String newMessage = restServer.arg("message");
+  newMessage = newMessage.substring(0, 100);
+  strcpy(message, newMessage.c_str());
+
+  restServer.send(400, "text/plain", message);
 }
 
-void restSetup() {
+void restSetup()
+{
   restServer.on("/", HTTP_GET, restIndex);
-  restServer.on("/5x5", HTTP_GET, restSet5x5MatrixMessage);
+  restServer.on("/5x5", HTTP_GET, []()
+                { restSetMessage(matrix5x5Message); });
+  restServer.on("/9x13", HTTP_GET, []()
+                { restSetMessage(matrix9x13Message); });
   restServer.begin();
 
   Serial.println("REST server running");
@@ -367,6 +377,11 @@ void restSetup() {
 
 void setup()
 {
+  delay(5000);
+
+  Wire.begin();
+  Wire.setClock(400000UL);
+
   Serial.begin(115200);
   Serial.println("Starting setup...");
 
@@ -374,8 +389,6 @@ void setup()
   mDnsSetup();
   otaSetup();
   restSetup();
-
-  Wire.setClock(1000000);
 
   Matrix5x5Setup();
   Matrix9x16Setup();
@@ -385,7 +398,6 @@ void setup()
 
 void loop()
 {
-  // TOOD: wifi status?
   ArduinoOTA.handle();
   restServer.handleClient();
   checkWifiStatus();
