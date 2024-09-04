@@ -23,6 +23,8 @@ TaskHandle_t matrix9x16TaskHandle = NULL;
 TaskHandle_t matrix9x13TaskHandle = NULL;
 TaskHandle_t matrix8x8TaskHandle = NULL;
 
+volatile bool display = true;
+
 //////////////////
 Adafruit_NeoMatrix matrix5x5(5, 5, PIN,
                              NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT +
@@ -71,6 +73,16 @@ void Matrix5x5Task(void *parameters)
 {
   while (1)
   {
+
+    if (!display)
+    {
+      matrix5x5.fillScreen(0);
+      matrix5x5.show();
+      //matrix5x5.clear();
+      delay(100);
+      continue;
+    }
+
     matrix5x5.fillScreen(0);                       // Erase message in old position.
     matrix5x5.setCursor(matrix5x5_x, matrix5x5_y); // Set new cursor position,
     matrix5x5.print(matrix5x5Message);             // draw the message
@@ -111,6 +123,13 @@ void Matrix9x16Task(void *parameters)
 {
   while (1)
   {
+    if (!display)
+    {
+      matrix9x16.clear();
+      delay(100);
+      continue;
+    }
+
     for (uint8_t incr = 0; incr < 24; incr++)
       for (uint8_t x = 0; x < 16; x++)
         for (uint8_t y = 0; y < 9; y++)
@@ -133,8 +152,25 @@ void Matrix9x16Setup()
 
 void Matrix9x13Task(void *parameters)
 {
+  bool isEnabled = true;
   while (1)
   {
+    if (!display)
+    {
+      if (isEnabled)
+      {
+        matrix9x13.enable(false);
+        isEnabled = false;
+      }
+      delay(100);
+      continue;
+    }
+    else if (!isEnabled)
+    {
+      matrix9x13.enable(true);
+      isEnabled = true;
+    }
+
     matrix9x13.setCursor(text_x, text_y);
     for (int i = 0; i < (int)strlen(matrix9x13Message); i++)
     {
@@ -203,6 +239,15 @@ void Matrix8x8Task(void *parameters)
 {
   while (1)
   {
+    if (!display)
+    {
+      matrix8x8.fillScreen(LED_OFF);
+      matrix8x8.writeDisplay();
+      //matrix8x8.clear();
+      delay(100);
+      continue;
+    }
+
     for (int i = 0; i < LED_COUNT; i++)
     {
       if (--pixelData[i].delay > 0)
@@ -347,7 +392,27 @@ void restIndex()
   Serial.println("Served index.html");
 }
 
-void restSetMessage(char *message)
+void restSetDisplay()
+{
+  if (restServer.hasArg("state"))
+  {
+    Serial.println("Setting display state");
+    String newState = restServer.arg("state");
+    newState.toLowerCase();
+    if (newState == "on")
+    {
+      display = true;
+    }
+    else if (newState == "off")
+    {
+      display = false;
+    }
+  }
+
+  restServer.send(400, "text/plain", String(display));
+}
+
+void restSetMessage(char *curMessage)
 {
   if (!restServer.hasArg("message"))
   {
@@ -358,14 +423,15 @@ void restSetMessage(char *message)
 
   String newMessage = restServer.arg("message");
   newMessage = newMessage.substring(0, 100);
-  strcpy(message, newMessage.c_str());
+  strcpy(curMessage, newMessage.c_str());
 
-  restServer.send(400, "text/plain", message);
+  restServer.send(400, "text/plain", curMessage);
 }
 
 void restSetup()
 {
   restServer.on("/", HTTP_GET, restIndex);
+  restServer.on("/display", HTTP_GET, restSetDisplay);
   restServer.on("/5x5", HTTP_GET, []()
                 { restSetMessage(matrix5x5Message); });
   restServer.on("/9x13", HTTP_GET, []()
