@@ -392,24 +392,25 @@ void restIndex()
   Serial.println("Served index.html");
 }
 
-void restSetDisplay()
+void restDisplay()
 {
-  if (restServer.hasArg("state"))
-  {
-    Serial.println("Setting display state");
-    String newState = restServer.arg("state");
-    newState.toLowerCase();
-    if (newState == "on")
-    {
-      display = true;
-    }
-    else if (newState == "off")
-    {
+  if (restServer.hasArg("plain")) {
+    String body = restServer.arg("plain");
+    body.toLowerCase();
+
+    if (body == "off") {
+      Serial.println("Turning display off");
       display = false;
+    } else if (body == "on") {
+      Serial.println("Turning display on");
+      display = true;
+    } else {
+      restServer.send(400, "text/plain", body);
+      return;
     }
   }
 
-  restServer.send(400, "text/plain", String(display));
+  restServer.send(200, "text/plain", display ? "on" : "off");
 }
 
 void restSetMessage(char *curMessage)
@@ -425,15 +426,15 @@ void restSetMessage(char *curMessage)
   newMessage = newMessage.substring(0, 100);
   strcpy(curMessage, newMessage.c_str());
 
-  restServer.send(400, "text/plain", curMessage);
+  restServer.send(200, "text/plain", curMessage);
 }
 
 void restSetup()
 {
   restServer.on("/", HTTP_GET, restIndex);
-  restServer.on("/display", HTTP_GET, restSetDisplay);
+  restServer.on("/display", restDisplay);
   restServer.on("/5x5", HTTP_GET, []()
-                { restSetMessage(matrix5x5Message); });
+                { restSetMessage(matrix5x5Message); }); // TODO: support GET or POST params?
   restServer.on("/9x13", HTTP_GET, []()
                 { restSetMessage(matrix9x13Message); });
   restServer.begin();
