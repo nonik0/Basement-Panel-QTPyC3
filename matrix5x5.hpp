@@ -5,7 +5,6 @@
 
 extern volatile bool display;
 TaskHandle_t matrix5x5TaskHandle = NULL;
-extern volatile bool display;
 Adafruit_NeoMatrix matrix5x5(5, 5, PIN,
                              NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT +
                                  NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,

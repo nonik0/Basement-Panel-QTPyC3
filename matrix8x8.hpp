@@ -4,6 +4,7 @@
 #define REFRESHTIME 15
 #define BASEDELAY 20
 
+extern volatile bool display;
 TaskHandle_t matrix8x8TaskHandle = NULL;
 
 struct Pixel
@@ -49,7 +50,7 @@ void Matrix8x8Task(void *parameters)
     {
       matrix8x8.fillScreen(LED_OFF);
       matrix8x8.writeDisplay();
-      //matrix8x8.clear();
+      // matrix8x8.clear();
       delay(100);
       continue;
     }

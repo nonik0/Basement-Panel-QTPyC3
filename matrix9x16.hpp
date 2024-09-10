@@ -1,5 +1,6 @@
 #include <Adafruit_IS31FL3731.h>
 
+extern volatile bool display;
 TaskHandle_t matrix9x16TaskHandle = NULL;
 
 Adafruit_IS31FL3731 matrix9x16 = Adafruit_IS31FL3731();
