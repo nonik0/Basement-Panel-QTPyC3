@@ -4,8 +4,7 @@
 #include <Adafruit_IS31FL3741.h>
 #include <Adafruit_LEDBackpack.h>
 #include <Adafruit_NeoPixel.h>
-#include <Adafruit_NeoMatrix.h>
-#include <Fonts/TomThumb.h>
+
 
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
@@ -13,45 +12,19 @@
 #include <WiFi.h>
 
 #include "secrets.h"
-
-#define PIN A3
+#include "matrix5x5.hpp"
+#include "matrix9x13.hpp"
 
 WebServer restServer(80);
 
-TaskHandle_t matrix5x5TaskHandle = NULL;
 TaskHandle_t matrix9x16TaskHandle = NULL;
-TaskHandle_t matrix9x13TaskHandle = NULL;
 TaskHandle_t matrix8x8TaskHandle = NULL;
 
 volatile bool display = true;
 
-//////////////////
-Adafruit_NeoMatrix matrix5x5(5, 5, PIN,
-                             NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT +
-                                 NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
-                             NEO_GRB + NEO_KHZ800);
-
-char *matrix5x5Message;
-const uint16_t colors[] = {
-    matrix5x5.Color(255, 60, 0), matrix5x5.Color(255, 120, 0), matrix5x5.Color(255, 255, 0)};
-uint16_t message_width;               // Computed in setup() below
-int matrix5x5_x = matrix5x5.width();  // Start with message off right edge
-int matrix5x5_y = matrix5x5.height(); // With custom fonts, y is the baseline, not top
-int matrix5x5_pass = 0;               // Counts through the colors[] array
-///////////////
-
 ///////////////
 Adafruit_IS31FL3731 matrix9x16 = Adafruit_IS31FL3731();
 uint8_t sweep[] = {1, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 60, 40, 30, 20, 15, 10, 8, 6, 4, 3, 2, 1};
-///////////////
-
-///////////////
-Adafruit_IS31FL3741_QT matrix9x13 = Adafruit_IS31FL3741_QT();
-char *matrix9x13Message;
-int text_x = matrix9x13.width(); // Initial text position = off right edge
-int text_y = 1;
-int text_min; // Pos. where text resets (calc'd later)
-uint16_t hue_offset = 0;
 ///////////////
 
 ///////////////
@@ -69,55 +42,7 @@ Pixel pixelData[LED_COUNT];
 Adafruit_BicolorMatrix matrix8x8 = Adafruit_BicolorMatrix();
 ///////////////
 
-void Matrix5x5Task(void *parameters)
-{
-  while (1)
-  {
 
-    if (!display)
-    {
-      matrix5x5.fillScreen(0);
-      matrix5x5.show();
-      //matrix5x5.clear();
-      delay(100);
-      continue;
-    }
-
-    matrix5x5.fillScreen(0);                       // Erase message in old position.
-    matrix5x5.setCursor(matrix5x5_x, matrix5x5_y); // Set new cursor position,
-    matrix5x5.print(matrix5x5Message);             // draw the message
-    matrix5x5.show();                              // and update the matrix.
-    if (--matrix5x5_x < -message_width)
-    {                                  // Move 1 pixel left. Then, if scrolled off left...
-      matrix5x5_x = matrix5x5.width(); // reset position off right edge and
-      if (++matrix5x5_pass >= 3)
-        matrix5x5_pass = 0; // increment color in list, rolling over if needed.
-      matrix5x5.setTextColor(colors[matrix5x5_pass]);
-    }
-    delay(100); // 1/10 sec pause
-  }
-}
-
-void Matrix5x5Setup()
-{
-  matrix5x5Message = new char[100];
-  strcpy(matrix5x5Message, "BEAU IN TOW!");
-
-  matrix5x5.begin();
-  matrix5x5.setBrightness(40);       // Turn down brightness to about 15%
-  matrix5x5.setFont(&TomThumb);      // Use custom font
-  matrix5x5.setTextWrap(false);      // Allows text to scroll off edges
-  matrix5x5.setTextColor(colors[0]); // Start with first color in list
-  // To determine when the message has fully scrolled off the left side,
-  // get the bounding rectangle of the text. As we only need the width
-  // value, a couple of throwaway variables are passed to the bounds
-  // function for the other values:
-  int16_t d1;
-  uint16_t d2;
-  matrix5x5.getTextBounds(matrix5x5Message, 0, 0, &d1, &d1, &message_width, &d2);
-
-  xTaskCreate(Matrix5x5Task, "Matrix5x5Task", 4096, NULL, 10, &matrix5x5TaskHandle);
-}
 
 void Matrix9x16Task(void *parameters)
 {
@@ -148,91 +73,6 @@ void Matrix9x16Setup()
   Serial.println("9x16 found!");
 
   xTaskCreate(Matrix9x16Task, "Matrix9x16Task", 4096, NULL, 10, &matrix9x16TaskHandle);
-}
-
-void Matrix9x13Task(void *parameters)
-{
-  bool isEnabled = true;
-  while (1)
-  {
-    if (!display)
-    {
-      if (isEnabled)
-      {
-        matrix9x13.enable(false);
-        isEnabled = false;
-      }
-      delay(100);
-      continue;
-    }
-    else if (!isEnabled)
-    {
-      matrix9x13.enable(true);
-      isEnabled = true;
-    }
-
-    matrix9x13.setCursor(text_x, text_y);
-    for (int i = 0; i < (int)strlen(matrix9x13Message); i++)
-    {
-      // set the color thru the rainbow
-      uint32_t color888 = matrix9x13.ColorHSV(65536 * i / strlen(matrix9x13Message));
-      uint16_t color565 = matrix9x13.color565(color888);
-      matrix9x13.setTextColor(color565, 0);   // backound is '0' to erase previous text!
-      matrix9x13.print(matrix9x13Message[i]); // write the letter
-    }
-
-    if (--text_x < text_min)
-    {
-      text_x = matrix9x13.width();
-    }
-
-    delay(25);
-
-    // uint32_t i = 0;
-    // for (int y = 0; y < matrix9x13.height(); y++)
-    // {
-    //   for (int x = 0; x < matrix9x13.width(); x++)
-    //   {
-    //     uint32_t color888 = matrix9x13.ColorHSV(i * 65536 / 117 + hue_offset);
-    //     uint16_t color565 = matrix9x13.color565(color888);
-    //     matrix9x13.drawPixel(x, y, color565);
-    //     i++;
-    //   }
-    // }
-
-    // hue_offset += 256;
-
-    // matrix9x13.setGlobalCurrent(hue_offset / 256); // Demonstrate global current
-  }
-}
-
-void Matrix9x13Setup()
-{
-  matrix9x13Message = new char[100];
-  strcpy(matrix9x13Message, "STELLA IS BELLA!");
-
-  if (!matrix9x13.begin(IS3741_ADDR_DEFAULT))
-  {
-    Serial.println("9x13 not found");
-    return;
-  }
-  Serial.println("9x13 found!");
-
-  // Set brightness to max and bring controller out of shutdown state
-  matrix9x13.setLEDscaling(0xFF);
-  matrix9x13.setGlobalCurrent(0x10);
-  matrix9x13.fill(0);
-  matrix9x13.enable(true); // bring out of shutdown
-  matrix9x13.setRotation(0);
-  matrix9x13.setTextWrap(false);
-
-  // Get text dimensions to determine X coord where scrolling resets
-  uint16_t w, h;
-  int16_t ignore;
-  matrix9x13.getTextBounds(matrix9x13Message, 0, 0, &ignore, &ignore, &w, &h);
-  text_min = -w; // Off left edge this many pixels
-
-  xTaskCreate(Matrix9x13Task, "Matrix9x13Task", 4096, NULL, 10, &matrix9x13TaskHandle);
 }
 
 void Matrix8x8Task(void *parameters)
