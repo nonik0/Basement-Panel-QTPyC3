@@ -17,28 +17,6 @@ int text_min; // Pos. where text resets (calc'd later)
 int text_min2;
 uint16_t hue_offset = 0;
 
-// void drawChar(int x, int y, char c, uint32_t color) {
-//   for (int8_t i = 0; i < 4; i++) {
-//     int8_t line = FONT3X4[c][i];
-//     for (int8_t j = 0; j < 3; j++) {
-//       if (line & (1 << j)) {
-//         matrix9x13.drawPixel(x + i, y + j, color);
-//       }
-//     }
-//   }
-// }
-
-// void drawString(int x, int y, const char *str, uint32_t color) {
-//   while (*str) {
-//     drawChar(x, y, *str++, color);
-//     x += 4;
-
-//     if (x >= matrix9x13.width()) {
-//       return;
-//     }
-//   }
-// }
-
 void Matrix9x13Task(void *parameters);
 
 void Matrix9x13Setup()
