@@ -1,7 +1,7 @@
 #include "matrix5x5.hpp"
 #include "matrix8x8.hpp"
-#include "matrix9x13.hpp"
-#include "matrix9x16.hpp"
+#include "matrix13x9.hpp"
+#include "matrix16x9.hpp"
 #include "services.hpp"
 
 volatile bool display = true;
@@ -20,9 +20,9 @@ void setup()
   restSetup();
 
   Matrix5x5Setup();
-  Matrix9x16Setup();
-  Matrix9x13Setup();
   Matrix8x8Setup();
+  Matrix13x9Setup();
+  Matrix16x9Setup();
 }
 
 void loop()

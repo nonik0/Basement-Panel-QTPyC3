@@ -10,7 +10,7 @@ struct ShufflePixel
 {
   uint16_t color;
   int x, y;                  // Current position
-  int destX, destY;        // Final position for text
+  int destX, destY;          // Final position for text
   int velX, velY;            // Velocity (-1, 0, 1 for X and Y)
   int speed;                 // Speed of the pixel (how often it moves)
   int moveCounter;           // Counter to control the speed
@@ -23,14 +23,15 @@ ShufflePixel pixels[MATRIX_WIDTH * MATRIX_HEIGHT];
 int totalPixels = 0;
 
 const uint16_t ShuffleColors[] = {
-    Adafruit_IS31FL3741::color565(0xFF, 0x66, 0x00),
-    Adafruit_IS31FL3741::color565(0xAA, 0x22, 0x00)};
+    Adafruit_IS31FL3741::color565(0xBB, 0x30, 0x00),
+    Adafruit_IS31FL3741::color565(0xAA, 0x15, 0x00),
+    Adafruit_IS31FL3741::color565(0xAA, 0x05, 0x00)};
 
 extern volatile bool display;
 TaskHandle_t matrix13x9TaskHandle = NULL;
 
 Adafruit_IS31FL3741_QT_buffered matrix13x9;
-char *matrix13x9Message = "MSFT|412.8";
+char *matrix13x9Message;
 
 void renderMatrix()
 {
@@ -51,19 +52,26 @@ void movePixel(ShufflePixel &p, int maxDistToDest)
       // change direction if max steps reached
       if (p.stepsInSameDirection >= p.maxSteps)
       {
-        int stepsToEdge;
         int distToDest = abs(p.destX - p.x) + abs(p.destY - p.y);
+        int distToDestAxis;
+        int distToEdge;
+        bool awayFromDest = false;
 
-        // constrain movement towards dest
-        if (distToDest >= maxDistToDest) {
-          //if (distToDest > maxDistToDest) p.speed = max(1, p.speed - 1); // increase speed if behind
-          int distToDestAxis;
+        //
+        // choose a velocity direction
+        //
 
-          // randomly choose direction to move towards dest (unless one is 0 then move in other direction)
-          if (p.destX == p.x || p.destY == p.y) {
+        // constrained to one direction if on edge of max distance border
+        if (distToDest >= maxDistToDest)
+        {
+          if (p.destX == p.x || p.destY == p.y)
+          {
             p.velX = p.destX == p.x ? 0 : (p.destX > p.x ? 1 : -1);
             p.velY = p.destY == p.y ? 0 : (p.destY > p.y ? 1 : -1);
-          } else {
+            distToDestAxis = abs(p.destX - p.x) + abs(p.destY - p.y);
+          }
+          else
+          {
             if (random(2))
             {
               p.velX = p.destX > p.x ? 1 : -1;
@@ -77,27 +85,63 @@ void movePixel(ShufflePixel &p, int maxDistToDest)
               distToDestAxis = abs(p.destY - p.y);
             }
           }
-
-          p.stepsInSameDirection = 0;
-          p.maxSteps = random(1, distToDestAxis);
         }
-        else {
+        // can choose any direction not leading directly off an edge
+        else
+        {
+          bool awayFromDest;
           do
           {
-            if (random(2)) {
+            if (random(2))
+            {
               p.velX = random(-1, 2);
               p.velY = 0;
-              stepsToEdge = p.velX > 0 ? MATRIX_WIDTH - p.x : p.x;
-            } else {
+              distToEdge = p.velX > 0 ? MATRIX_WIDTH - p.x : p.x;
+              awayFromDest = p.destX - p.x > 0 && p.velX < 0 || p.destX - p.x < 0 && p.velX > 0;
+            }
+            else
+            {
               p.velX = 0;
               p.velY = random(-1, 2);
-              stepsToEdge = p.velY > 0 ? MATRIX_HEIGHT - p.y : p.y;
+              distToEdge = p.velY > 0 ? MATRIX_HEIGHT - p.y : p.y;
+              awayFromDest = p.destY - p.y > 0 && p.velY < 0 || p.destY - p.y < 0 && p.velY > 0;
             }
-          } while (stepsToEdge == 0);
-
-          p.stepsInSameDirection = 0;
-          p.maxSteps = random(min(3, stepsToEdge), min(stepsToEdge + 1, 8));
+          } while (distToEdge == 0);
         }
+
+        //
+        // choose move distance
+        //
+
+        int minMove = 3;
+        int maxMove = 8;
+
+        // if not moving, max "steps"
+        if (p.velX == 0 && p.velY == 0)
+        {
+          minMove = 1;
+          maxMove = min(maxMove, maxDistToDest - distToDest - 1);
+        }
+
+        if (distToDest >= maxDistToDest)
+        {
+          minMove = min(minMove, distToDestAxis);
+          maxMove = min(maxMove, distToDestAxis);
+        }
+        else
+        {
+          minMove = min(minMove, distToEdge);
+          maxMove = min(maxMove, distToEdge);
+
+          if (awayFromDest)
+          {
+            minMove = min(minMove, (maxDistToDest - distToDest) / 2); // every step is like 2 because max dist is also decreasing as pixel moves away
+            maxMove = min(maxMove, (maxDistToDest - distToDest) / 2);
+          }
+        }
+
+        p.maxSteps = random(minMove, maxMove);
+        p.stepsInSameDirection = 0;
       }
 
       p.x += p.velX;
@@ -105,12 +149,36 @@ void movePixel(ShufflePixel &p, int maxDistToDest)
       p.stepsInSameDirection++;
       p.moveCounter = 0;
 
-      if (maxDistToDest < 2 && p.x == p.destX && p.y == p.destY)
+      if (maxDistToDest < 3 && p.x == p.destX && p.y == p.destY)
       {
         p.reachedFinalPosition = true;
       }
     }
     p.moveCounter++;
+  }
+}
+
+void getRandomOuterEdgeCoords(int &x, int &y)
+{
+  int edge = random(4);
+  switch (edge)
+  {
+  case 0: // Top edge
+    x = random(MATRIX_WIDTH);
+    y = -1;
+    break;
+  case 1: // Bottom edge
+    x = random(MATRIX_WIDTH);
+    y = MATRIX_HEIGHT;
+    break;
+  case 2: // Left edge
+    x = -1;
+    y = random(MATRIX_HEIGHT);
+    break;
+  case 3: // Right edge
+    x = MATRIX_WIDTH;
+    y = random(MATRIX_HEIGHT);
+    break;
   }
 }
 
@@ -147,7 +215,7 @@ void spawnOnOuterEdge(ShufflePixel &p)
     break;
   }
   p.reachedFinalPosition = false;
-  p.speed = 1; //random(1, 4);     // Set random speed (1: fast, 2: medium, 3: slow)
+  p.speed = 1;                // random(1, 4);     // Set random speed (1: fast, 2: medium, 3: slow)
   p.moveCounter = 0;          // Initialize move counter
   p.stepsInSameDirection = 0; // Initialize step counter for direction
   p.maxSteps = random(3, 8);  // Randomize the max number of steps before changing direction
@@ -216,9 +284,14 @@ void initializePixels()
   cursorY = 8;
 
   String price = message.substring(splitIdx + 1);
+  bool decimalNotSeen = true;
   for (int i = 0; i < price.length(); i++)
   {
-    uint16_t textColor = ShuffleColors[i % 2];
+    uint16_t textColor = price[i] != '.'
+                             ? ShuffleColors[(i + decimalNotSeen) % 2]
+                             : ShuffleColors[2];
+    decimalNotSeen &= price[i] != '.';
+
     matrix13x9.setTextColor(textColor);
     initializeCharPixels(cursorX, cursorY, price[i], textColor, charWidth);
     cursorX += charWidth;
@@ -229,6 +302,8 @@ bool animatePixels(int maxDistToDest)
 {
   bool allReached = true;
 
+  Serial.print("maxDistToDest: ");
+  Serial.println(maxDistToDest);
   for (int i = 0; i < totalPixels; i++)
   {
     movePixel(pixels[i], maxDistToDest);
@@ -247,6 +322,9 @@ void Matrix13x9Task(void *parameters);
 
 void Matrix13x9Setup()
 {
+  matrix13x9Message = new char[100];
+  strcpy(matrix13x9Message, "MSFT|412.8");
+
   if (!matrix13x9.begin(IS3741_ADDR_DEFAULT))
   {
     Serial.println("13x9 not found");
@@ -255,7 +333,7 @@ void Matrix13x9Setup()
   Serial.println("13x9 found!");
 
   // Set brightness to max and bring controller out of shutdown state
-  matrix13x9.setLEDscaling(0x08);
+  matrix13x9.setLEDscaling(0x10);
   matrix13x9.setGlobalCurrent(0xFF);
   matrix13x9.fill(0);
   matrix13x9.enable(true); // bring out of shutdown
@@ -266,8 +344,10 @@ void Matrix13x9Setup()
   xTaskCreate(Matrix13x9Task, "Matrix13x9Task", 4096, NULL, 2, &matrix13x9TaskHandle);
 }
 
-int animationCounter = 100; 
+int animationPauseMs = 2000;
+int animationCounter = 100;
 bool animationInit = false;
+bool animationOut = false;
 bool animationDone = false;
 unsigned long animationFinishedAt;
 void Matrix13x9Task(void *parameters)
@@ -306,13 +386,35 @@ void Matrix13x9Task(void *parameters)
       {
         animationFinishedAt = millis();
       }
-      delay(50);
     }
-    else if (millis() - animationFinishedAt > 2000)
+    else if (millis() - animationFinishedAt > animationPauseMs)
     {
-      animationCounter = 100;
-      animationInit = false;
       animationDone = false;
+
+      // set pixel destinations to outside of matrix
+      if (!animationOut)
+      {
+        for (int i = 0; i < totalPixels; i++)
+        {
+          int x, y;
+          getRandomOuterEdgeCoords(x, y);
+          pixels[i].destX = x;
+          pixels[i].destY = y;
+          pixels[i].reachedFinalPosition = false;
+        }
+        animationOut = true;
+        animationCounter = (13 + 9);
+        animationPauseMs = 500;
+      }
+      else
+      {
+        animationInit = false;
+        animationOut = false;
+        animationCounter = (13 + 9) * 5;
+        animationPauseMs = 2500;
+      }
     }
+
+    delay(50);
   }
 }

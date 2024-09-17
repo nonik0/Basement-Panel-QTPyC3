@@ -8,7 +8,7 @@
 WebServer restServer(80);
 extern volatile bool display;
 extern char *matrix5x5Message;
-extern char *matrix9x13Message;
+extern char *matrix13x9Message;
 
 void wifiSetup()
 {
@@ -158,8 +158,8 @@ void restSetup()
   restServer.on("/display", restDisplay);
   restServer.on("/5x5", HTTP_GET, []()
                 { restSetMessage(matrix5x5Message); });
-  restServer.on("/9x13", HTTP_GET, []()
-                { restSetMessage(matrix9x13Message); });
+  restServer.on("/13x9", HTTP_GET, []()
+                { restSetMessage(matrix13x9Message); });
   restServer.begin();
 
   Serial.println("REST server running");

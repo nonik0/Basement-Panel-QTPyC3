@@ -7,12 +7,12 @@
 extern volatile bool display;
 TaskHandle_t matrix8x8TaskHandle = NULL;
 
-struct Pixel
+struct BlinkenPixel
 {
   uint32_t color;
   int delay;
 };
-Pixel pixelData[LED_COUNT];
+BlinkenPixel pixelData[LED_COUNT];
 
 Adafruit_BicolorMatrix matrix8x8 = Adafruit_BicolorMatrix();
 
@@ -39,7 +39,7 @@ void Matrix8x8Setup()
     matrix8x8.drawPixel(i / 8, i % 8, pixelData[i].color);
   }
 
-  xTaskCreate(Matrix8x8Task, "Matrix8x8Task", 4096, NULL, 10, &matrix8x8TaskHandle);
+  xTaskCreate(Matrix8x8Task, "Matrix8x8Task", 4096, NULL, 2, &matrix8x8TaskHandle);
 }
 
 void Matrix8x8Task(void *parameters)
