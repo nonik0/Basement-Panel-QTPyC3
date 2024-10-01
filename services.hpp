@@ -13,8 +13,13 @@ extern char *matrix13x9Message;
 void wifiSetup()
 {
   Serial.println("Wifi setting up...");
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
+  WiFi.setTxPower(WIFI_POWER_8_5dBm); // seems to improve connection stability when issues on default tx power
+  Serial.print("Wifi TX: ");
+  Serial.println(WiFi.getTxPower());
+
   while (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
     Serial.println("Connection Failed! Rebooting...");
@@ -26,12 +31,16 @@ void wifiSetup()
   Serial.println(WiFi.localIP());
 }
 
-volatile long wifiStatusDelayMs = 0;
+volatile unsigned long wifiLastCheckMillis = 0;
+volatile int wifiStatusDelayMs = 5000;
 int wifiDisconnects = 0;
 void checkWifiStatus()
 {
-  if (wifiStatusDelayMs < 0)
+  if (millis() > wifiLastCheckMillis + wifiStatusDelayMs)
   {
+    Serial.print("Wifi TX: ");
+    Serial.println(WiFi.getTxPower());
+
     try
     {
       if (WiFi.status() != WL_CONNECTED)
@@ -49,6 +58,7 @@ void checkWifiStatus()
       wifiStatusDelayMs = 10 * 60 * 1000; // 10 minutes
     }
 
+    wifiLastCheckMillis = millis();
     wifiStatusDelayMs = 60 * 1000; // 1 minute
   }
 }
