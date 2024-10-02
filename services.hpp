@@ -38,23 +38,23 @@ void checkWifiStatus()
 {
   if (millis() > wifiLastCheckMillis + wifiStatusDelayMs)
   {
-    Serial.print("Wifi TX: ");
-    Serial.println(WiFi.getTxPower());
+    log_v("Wifi TX: ");
+    log_v(WiFi.getTxPower());
 
     try
     {
       if (WiFi.status() != WL_CONNECTED)
       {
-        Serial.println("Reconnecting to WiFi...");
+        log_w("Reconnecting to WiFi...");
         WiFi.disconnect();
         WiFi.reconnect();
         wifiDisconnects++;
-        Serial.println("Reconnected to WiFi");
+        log_w("Reconnected to WiFi");
       }
     }
     catch (const std::exception &e)
     {
-      Serial.println("Wifi error:" + String(e.what()));
+      log_e("Wifi error: %s", String(e.what()));
       wifiStatusDelayMs = 10 * 60 * 1000; // 10 minutes
     }
 
@@ -67,11 +67,11 @@ void mDnsSetup()
 {
   if (!MDNS.begin("i2c-led-controller"))
   {
-    Serial.println("Error setting up MDNS responder!");
+    log_e("Error setting up MDNS responder!");
     return;
   }
 
-  Serial.println("mDNS responder started");
+  log_d("mDNS responder started");
 }
 
 void otaSetup()
@@ -151,7 +151,7 @@ void restSetMessage(char *curMessage)
   if (!restServer.hasArg("message"))
   {
     restServer.send(400, "text/plain", "No message provided");
-    Serial.println("No message provided");
+    log_w("No message provided");
     return;
   }
 
@@ -169,8 +169,9 @@ void restSetup()
   restServer.on("/5x5", HTTP_GET, []()
                 { restSetMessage(matrix5x5Message); });
   restServer.on("/13x9", HTTP_GET, []()
-                { restSetMessage(matrix13x9Message); });
+                { restSetMessage(matrix5x5Message); });
+                //{ restSetMessage(matrix13x9Message); });
   restServer.begin();
 
-  Serial.println("REST server running");
+  log_d("REST server running");
 }

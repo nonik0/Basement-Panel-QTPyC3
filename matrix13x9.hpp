@@ -32,6 +32,12 @@ TaskHandle_t matrix13x9TaskHandle = NULL;
 
 Adafruit_IS31FL3741_QT_buffered matrix13x9;
 char *matrix13x9Message;
+int animationPauseMs = 2000;
+int animationCounter = 100;
+bool animationInit = false;
+bool animationOut = false;
+bool animationDone = false;
+unsigned long animationFinishedAt;
 
 void renderMatrix()
 {
@@ -302,8 +308,6 @@ bool animatePixels(int maxDistToDest)
 {
   bool allReached = true;
 
-  Serial.print("maxDistToDest: ");
-  Serial.println(maxDistToDest);
   for (int i = 0; i < totalPixels; i++)
   {
     movePixel(pixels[i], maxDistToDest);
@@ -327,10 +331,9 @@ void Matrix13x9Setup()
 
   if (!matrix13x9.begin(IS3741_ADDR_DEFAULT))
   {
-    Serial.println("13x9 not found");
+    log_e("13x9 not found");
     return;
   }
-  Serial.println("13x9 found!");
 
   // Set brightness to max and bring controller out of shutdown state
   matrix13x9.setLEDscaling(0x10);
@@ -342,16 +345,13 @@ void Matrix13x9Setup()
   matrix13x9.setFont(&Font3x4N);
 
   xTaskCreate(Matrix13x9Task, "Matrix13x9Task", 4096, NULL, 2, &matrix13x9TaskHandle);
+  log_d("13x9 set up complete");
 }
 
-int animationPauseMs = 2000;
-int animationCounter = 100;
-bool animationInit = false;
-bool animationOut = false;
-bool animationDone = false;
-unsigned long animationFinishedAt;
 void Matrix13x9Task(void *parameters)
 {
+  log_d("Starting Matrix13x9Task");
+
   bool isEnabled = true;
   while (1)
   {
