@@ -1,5 +1,4 @@
 #include <Adafruit_LEDBackpack.h>
-#include "dataTypes.hpp"
 
 #define REFRESHMTIME 15
 #define MATRIXMWIDTH 8
@@ -27,7 +26,7 @@ void Matrix8x8MSetup()
     return;
   }
 
-  matrix8x8M.setBrightness(3);
+  matrix8x8M.setBrightness(5);
 
   for (int y = 0; y < MATRIXMHEIGHT; y++)
   {

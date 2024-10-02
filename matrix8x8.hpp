@@ -1,5 +1,10 @@
 #include <Adafruit_LEDBackpack.h>
-#include "dataTypes.hpp"
+#include <queue>
+#include <stack>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
+using namespace std;
 
 #define LED_COUNT 64
 #define REFRESHTIME 15
@@ -25,16 +30,26 @@ struct Location
   int y;
 };
 
-struct LocationWithDistance
-{
-  int x;
-  int y;
-  int distance;
-};
-
 bool operator==(const Location &lhs, const Location &rhs)
 {
   return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+bool operator!=(const Location &lhs, const Location &rhs)
+{
+  return !(lhs == rhs);
+}
+
+namespace std
+{
+  template <>
+  struct hash<Location>
+  {
+    size_t operator()(const Location &loc) const
+    {
+      return hash<int>()(loc.x) ^ hash<int>()(loc.y);
+    }
+  };
 }
 
 const Direction Left = {-1, 0};
@@ -46,6 +61,7 @@ const Direction Directions[] = {Left, Right, Up, Down};
 bool maze[MATRIXHEIGHT][MATRIXWIDTH];
 Location runnerLoc = {-1, -1};
 Location exitLoc = {-1, -1};
+int distanceToExit = -1;
 
 void shuffleDirections(Direction *list, int size)
 {
@@ -117,11 +133,11 @@ void generateMaze()
   maze[start.y][start.x] = false;
 
   // create traversal stack with starting point
-  Stack<Location> path = Stack<Location>();
+  stack<Location> path = stack<Location>();
   path.push(start);
   int maxCycles = 1000;
 
-  while (!path.isEmpty() && maxCycles-- > 0)
+  while (!path.empty() && maxCycles-- > 0)
   {
     Location cur = path.top();
 
@@ -154,6 +170,7 @@ void generateMaze()
 void placeRunner()
 {
   runnerLoc = {-1, -1};
+  distanceToExit = -1;
 
   int attempts = 0;
   while (runnerLoc.x == -1)
@@ -189,50 +206,51 @@ void placeExit()
   log_d("Placing exit at (%d,%d) after %d attempts", exitLoc.x, exitLoc.y, attempts);
 }
 
-Stack<Location> findPathDfs(Location startLoc, Location endLoc)
+vector<Location> findPathDfs(Location startLoc, Location endLoc, int maxDistToEnd = -1)
 {
-  Stack<LocationWithDistance> locsToVisit = Stack<LocationWithDistance>();
-  Set<Location> locsVisited = Set<Location>();
-  Stack<Location> curPath = Stack<Location>();
+  stack<pair<Location, int>> locsToVisit = stack<pair<Location, int>>();
+  unordered_set<Location> locsVisited = unordered_set<Location>();
+  stack<Location> curPath = stack<Location>();
 
-  locsToVisit.push({startLoc.x, startLoc.y, 0});
+  locsToVisit.push({startLoc, 0});
 
-  // 0 P 0 G
-  // toVisit: 100
-  // visited: 10,
-  // curPath: 10
-
-  // cur: 100
-
-  while (!locsToVisit.isEmpty())
+  while (!locsToVisit.empty())
   {
-    LocationWithDistance curLocWithDist = locsToVisit.top();
-    Location curLoc = {curLocWithDist.x, curLocWithDist.y};
-
-    int distance = curLocWithDist.distance;
+    pair<Location, int> curLocAndDist = locsToVisit.top();
+    Location curLoc = curLocAndDist.first;
+    int distFromStart = curLocAndDist.second;
     locsToVisit.pop();
 
-    // found end, return path
-    if (curLoc == endLoc)
-    {
-      log_d("Found path from (%d,%d) to (%d,%d)", startLoc.x, startLoc.y, curLoc.x, curLoc.y);
-      curPath.push(curLoc);
-      return curPath;
-    }
-
-    if (locsVisited.contains(curLoc))
-    {
-      log_d("Skipping visited location (%d,%d)", curLoc.x, curLoc.y);
-      continue;
-    }
-    locsVisited.add(curLoc);
-
     // if curPath size is greater than distance than we need to unwind path to current distance
-    while (curPath.size() > distance)
+    while (curPath.size() > distFromStart)
     {
       curPath.pop();
     }
     curPath.push(curLoc);
+
+    // found end, return path in vector form
+    if (curLoc == endLoc)
+    {
+      log_v("Found path from (%d,%d) to (%d,%d)", startLoc.x, startLoc.y, curLoc.x, curLoc.y);
+
+      std::vector<Location> path;
+      while (!curPath.empty())
+      {
+        path.push_back(curPath.top());
+        curPath.pop();
+      }
+
+      std::reverse(path.begin(), path.end());
+      return path;
+    }
+
+    locsVisited.insert(curLoc);
+
+    // don't visit locations further than maxDistToEnd
+    if (maxDistToEnd > 0 && (distFromStart + 1) > maxDistToEnd)
+    {
+      continue;
+    }
 
     // look in different directions randomly in case of loops for variety of potential paths
     Direction randSteps[4] = {Left, Right, Up, Down};
@@ -241,14 +259,65 @@ Stack<Location> findPathDfs(Location startLoc, Location endLoc)
     for (Direction step : randSteps)
     {
       Location nextLoc = {curLoc.x + step.x, curLoc.y + step.y};
-      if (isInMazeBounds(nextLoc) && !isWall(nextLoc) && !locsVisited.contains(nextLoc))
+      if (isInMazeBounds(nextLoc) && !isWall(nextLoc) && !locsVisited.count(nextLoc))
       {
-        locsToVisit.push({nextLoc.x, nextLoc.y, distance + 1});
+        locsToVisit.push({nextLoc, distFromStart + 1});
       }
     }
   }
 
-  return Stack<Location>();
+  return vector<Location>();
+}
+
+vector<Location> findPathBfs(Location startLoc, Location endLoc)
+{
+  queue<Location> locsToVisit = queue<Location>();
+  unordered_set<Location> locsVisited = unordered_set<Location>();
+  unordered_map<Location, Location> visitedFrom = unordered_map<Location, Location>();
+
+  locsToVisit.push(startLoc);
+  visitedFrom[startLoc] = startLoc; // special case start location, visited from itself
+
+  while (!locsToVisit.empty())
+  {
+    Location curLoc = locsToVisit.front();
+    locsToVisit.pop();
+
+    // found end, return path in vector form
+    if (curLoc == endLoc)
+    {
+      log_d("Found path from (%d,%d) to (%d,%d)", startLoc.x, startLoc.y, curLoc.x, curLoc.y);
+
+      vector<Location> path = vector<Location>();
+      while (curLoc != startLoc)
+      {
+        path.push_back(curLoc);
+        curLoc = visitedFrom[curLoc];
+      }
+      path.push_back(startLoc);
+
+      std::reverse(path.begin(), path.end());
+      return path;
+    }
+
+    locsVisited.insert(curLoc);
+
+    // look in different directions randomly in case of loops for variety of potential paths
+    Direction randSteps[4] = {Left, Right, Up, Down};
+    shuffleDirections(randSteps, 4);
+
+    for (Direction step : randSteps)
+    {
+      Location nextLoc = {curLoc.x + step.x, curLoc.y + step.y};
+      if (isInMazeBounds(nextLoc) && !isWall(nextLoc) && !locsVisited.count(nextLoc))
+      {
+        locsToVisit.push(nextLoc);
+        visitedFrom[nextLoc] = curLoc;
+      }
+    }
+  }
+
+  return vector<Location>();
 }
 
 void MazeRunnerInit()
@@ -282,53 +351,43 @@ void MazeRunnerMove()
   if (runnerLoc == exitLoc)
   {
     log_d("Runner reached exit");
-    delay(5000); // blocking is fine for now
     MazeRunnerInit();
-  }
-
-  // get path to exit
-  Stack<Location> path = findPathDfs(runnerLoc, exitLoc);
-  if (path.isEmpty())
-  {
-    log_d("No path found to exit ");
     return;
   }
 
-  if (path.size() < 2)
+  try
   {
-    log_e("Already at exit");
-    return;
-  }
+    //vector<Location> path = findPathBfs(runnerLoc, exitLoc);
+    vector<Location> path = findPathDfs(runnerLoc, exitLoc, distanceToExit);
 
-  // second location in path is the next move (second last in stack)
-  String pathStr = "";
-  while (path.size() > 2)
+    if (path.size() < 2)
+    {
+      log_d("No path found from (%d,%d) to (%d,%d)", runnerLoc.x, runnerLoc.y, exitLoc.x, exitLoc.y);
+      return;
+    }
+
+    if (runnerLoc != path[0])
+    {
+      log_d("Runner is not at expected location (%d,%d)", path[0].x, path[0].y);
+      return;
+    }
+
+    int stepDistance = abs(path[1].x - path[0].x) + abs(path[1].y - path[0].y);
+    if (stepDistance != 1)
+    {
+      log_d("First step is not one step: (%d,%d) to (%d,%d)", path[0].x, path[0].y, path[1].x, path[1].y);
+      return;
+    }
+
+    runnerLoc = path[1];
+    distanceToExit = path.size() - 2; // -1 for included start, -1 for next step
+
+    log_d("Moved runner from (%d,%d) to (%d,%d) with dist %d", path[0].x, path[0].y, path[1].x, path[1].y, distanceToExit);
+  }
+  catch (exception &e)
   {
-    pathStr += "(" + String(path.top().x) + "," + String(path.top().y) + ")<=";
-    path.pop();
+    log_e("MazeRunnerMove Exception: %s", e.what());
   }
-
-  // now stack is [cirLoc, nextLoc]
-  Location nextLoc = path.top();
-
-  pathStr += "(" + String(nextLoc.x) + "," + String(nextLoc.y) + ")";
-  log_d("Path to exit: %s", pathStr.c_str());
-
-  if (isWall(nextLoc.x, nextLoc.y))
-  {
-    log_e("Next location is a wall, not moving");
-    return;
-  }
-
-  int distance = abs(nextLoc.x - runnerLoc.x) + abs(nextLoc.y - runnerLoc.y);
-  if (distance > 1)
-  {
-    log_e("Next location is not adjacent, not moving");
-    return;
-  }
-
-  log_d("Moving runner from (%d,%d) to (%d,%d)", runnerLoc.x, runnerLoc.y, nextLoc.x, nextLoc.y);
-  runnerLoc = nextLoc;
 }
 
 void MazeRunnerDraw()
@@ -382,6 +441,6 @@ void Matrix8x8Task(void *parameters)
 
     MazeRunnerMove();
     MazeRunnerDraw();
-    delay(500);
+    delay(50);
   }
 }

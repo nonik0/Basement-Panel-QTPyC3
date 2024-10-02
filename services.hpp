@@ -9,6 +9,7 @@ WebServer restServer(80);
 extern volatile bool display;
 extern char *matrix5x5Message;
 extern char *matrix13x9Message;
+extern char *matrix16x9Message;
 
 void wifiSetup()
 {
@@ -169,8 +170,9 @@ void restSetup()
   restServer.on("/5x5", HTTP_GET, []()
                 { restSetMessage(matrix5x5Message); });
   restServer.on("/13x9", HTTP_GET, []()
-                { restSetMessage(matrix5x5Message); });
-                //{ restSetMessage(matrix13x9Message); });
+                { restSetMessage(matrix13x9Message); });
+  restServer.on("/16x9", HTTP_GET, []()
+                { restSetMessage(matrix16x9Message); });
   restServer.begin();
 
   log_d("REST server running");

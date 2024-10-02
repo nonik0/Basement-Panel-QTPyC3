@@ -1,3 +1,5 @@
+#pragma once
+
 // ChatGPT couldn't cope so fixed up with https://tchapi.github.io/Adafruit-GFX-Font-Customiser/
 
 #include <Adafruit_GFX.h>

@@ -327,7 +327,7 @@ void Matrix13x9Task(void *parameters);
 void Matrix13x9Setup()
 {
   matrix13x9Message = new char[100];
-  strcpy(matrix13x9Message, "MSFT|412.8");
+  strcpy(matrix13x9Message, "NASB|2214");
 
   if (!matrix13x9.begin(IS3741_ADDR_DEFAULT))
   {
@@ -336,7 +336,7 @@ void Matrix13x9Setup()
   }
 
   // Set brightness to max and bring controller out of shutdown state
-  matrix13x9.setLEDscaling(0x10);
+  matrix13x9.setLEDscaling(0x08);
   matrix13x9.setGlobalCurrent(0xFF);
   matrix13x9.fill(0);
   matrix13x9.enable(true); // bring out of shutdown
