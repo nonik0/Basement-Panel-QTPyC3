@@ -125,11 +125,19 @@ void generateMaze()
     }
   }
 
-  // define starting point randomly
-  int edge = random(4);
-  int x = random(MATRIXWIDTH);
-  int y = random(MATRIXHEIGHT);
-  Location start = {x, y};
+  // define starting point randomly if exit is not previously defined (ensures space for runner start loc)
+  Location start = {-1, -1};
+  if (exitLoc.x == -1 || exitLoc.y == -1)
+  {
+    int edge = random(4);
+    int x = random(MATRIXWIDTH);
+    int y = random(MATRIXHEIGHT);
+    start = {x, y};
+  }
+  else
+  {
+    start = exitLoc;
+  }
   maze[start.y][start.x] = false;
 
   // create traversal stack with starting point
@@ -170,7 +178,12 @@ void generateMaze()
 void placeRunner()
 {
   runnerLoc = {-1, -1};
-  distanceToExit = -1;
+
+  if (exitLoc.x != -1 && exitLoc.y != -1)
+  {
+    runnerLoc = exitLoc; // using last exit as start location
+    return;
+  }
 
   int attempts = 0;
   while (runnerLoc.x == -1)
@@ -357,7 +370,7 @@ void MazeRunnerMove()
 
   try
   {
-    //vector<Location> path = findPathBfs(runnerLoc, exitLoc);
+    // vector<Location> path = findPathBfs(runnerLoc, exitLoc);
     vector<Location> path = findPathDfs(runnerLoc, exitLoc, distanceToExit);
 
     if (path.size() < 2)
