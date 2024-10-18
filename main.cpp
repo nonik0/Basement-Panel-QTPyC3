@@ -2,10 +2,11 @@
 #include "matrix8x8.hpp"
 #include "matrix8x8M.hpp"
 #include "matrix13x9.hpp"
-#include "matrix16x9.hpp"
+#include "matrix16x9.h"
 #include "services.hpp"
 
 volatile bool display = true;
+Matrix16x9TaskHandler matrix16x9TaskHandler;
 
 void setup()
 {
@@ -25,7 +26,9 @@ void setup()
   Matrix8x8Setup();
   Matrix8x8MSetup();
   Matrix13x9Setup();
-  Matrix16x9Setup();
+  //Matrix16x9Setup();
+
+  matrix16x9TaskHandler.createTask();
 
   log_d("Setup complete");
 }
