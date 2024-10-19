@@ -1,4 +1,6 @@
 
+#include "matrix5x5.hpp"
+
 #include "matrix_5x5.h"
 #include "matrix_8x8.h"
 #include "matrix_8x8M.h"
@@ -27,11 +29,13 @@ void setup()
   otaSetup();
   restSetup();
 
+  //Matrix5x5Setup();
+
   matrix5x5TaskHandler.createTask();
-  matrix8x8TaskHandler.createTask();
-  matrix8x8MTaskHandler.createTask();
-  matrix13x9TaskHandler.createTask();
-  matrix16x9TaskHandler.createTask();
+  // matrix8x8TaskHandler.createTask();
+  // matrix8x8MTaskHandler.createTask();
+  // matrix13x9TaskHandler.createTask();
+  // matrix16x9TaskHandler.createTask();
 
   log_d("Setup complete");
 }

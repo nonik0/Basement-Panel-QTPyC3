@@ -112,7 +112,7 @@ bool Matrix8x8TaskHandler::createTask()
 
   xTaskCreate(matrixTaskWrapper, "Matrix8x8Task", 4096, this, 2, &_taskHandle);
 
-  log_d("8x8 setup complete");
+  log_d("Matrix setup complete");
 
   return true;
 }
