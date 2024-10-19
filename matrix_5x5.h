@@ -5,19 +5,20 @@
 
 extern volatile bool display;
 
+Adafruit_NeoMatrix matrix(5, 5, A3,
+                            NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT + NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
+                            NEO_GRB + NEO_KHZ800);
+const uint16_t colors[3] = {
+    matrix.Color(255, 55, 0), matrix.Color(255, 110, 0), matrix.Color(255, 165, 0)};
+
 class Matrix5x5TaskHandler : public MatrixTaskHandler
 {
 private:
-    static const uint8_t PIN = A3;
-    static const uint8_t WIDTH = 5;
-    static const uint8_t HEIGHT = 5;
+    static const int PIN = A3;
+    static const int WIDTH = 5;
+    static const int HEIGHT = 5;
 
-    Adafruit_NeoMatrix matrix(WIDTH, HEIGHT, PIN,
-                              NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT +
-                                  NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
-                              NEO_GRB + NEO_KHZ800);
-    const uint16_t colors[3] = {
-        matrix.Color(255, 55, 0), matrix.Color(255, 110, 0), matrix.Color(255, 165, 0)};
+
     uint16_t message_width;  // Computed in setup() below
     int x = matrix.width();  // Start with message off right edge
     int y = matrix.height(); // With custom fonts, y is the baseline, not top
@@ -43,6 +44,7 @@ bool Matrix5x5TaskHandler::createTask()
     log_w("Task already started");
     return false;
   }
+
     strcpy(_message, "BEAU IN TOW!");
 
     matrix.begin();
@@ -55,7 +57,7 @@ bool Matrix5x5TaskHandler::createTask()
     uint16_t d2;
     matrix.getTextBounds(_message, 0, 0, &d1, &d1, &message_width, &d2);
 
-    xTaskCreate(Matrix5x5Task, "Matrix5x5Task", 4096, NULL, 2, &_taskHandle);
+    xTaskCreate(matrixTaskWrapper, "Matrix5x5Task", 4096, this, 2, &_taskHandle);
     log_d("5x5 set up complete");
 
     return true;

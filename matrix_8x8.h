@@ -1,22 +1,17 @@
+#pragma once
+
 #include <Adafruit_LEDBackpack.h>
 #include <queue>
 #include <stack>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
+
+#include "matrix_task_handler.h"
+
 using namespace std;
 
-#define LED_COUNT 64
-#define REFRESHTIME 15
-#define BASEDELAY 20
-#define MATRIXWIDTH 8
-#define MATRIXHEIGHT 8
-
 extern volatile bool display;
-TaskHandle_t matrix8x8TaskHandle = NULL;
-Adafruit_BicolorMatrix matrix8x8 = Adafruit_BicolorMatrix();
-
-void Matrix8x8Task(void *parameters);
 
 struct Direction
 {
@@ -58,12 +53,92 @@ const Direction Up = {0, -1};
 const Direction Down = {0, 1};
 const Direction Directions[] = {Left, Right, Up, Down};
 
-bool maze[MATRIXHEIGHT][MATRIXWIDTH];
-Location runnerLoc = {-1, -1};
-Location exitLoc = {-1, -1};
-int distanceToExit = -1;
+class Matrix8x8TaskHandler : public MatrixTaskHandler
+{
+private:
+  static const uint8_t WIDTH = 8;
+  static const uint8_t HEIGHT = 8;
 
-void shuffleDirections(Direction *list, int size)
+  Adafruit_BicolorMatrix matrix = Adafruit_BicolorMatrix();
+  bool maze[HEIGHT][WIDTH];
+  Location runnerLoc = {-1, -1};
+  Location exitLoc = {-1, -1};
+  int distanceToExit = -1;
+
+public:
+  Matrix8x8TaskHandler() {}
+  bool createTask() override;
+
+private:
+  void matrixTask(void *parameters) override;
+  void shuffleDirections(Direction *list, int size);
+  bool isWall(int x, int y);
+  bool isWall(Location loc);
+  bool isInMazeBounds(int x, int y);
+  bool isInMazeBounds(Location loc);
+  int getAdjacentWallAndBorderCount(int x, int y);
+  int getAdjacentWallAndBorderCount(Location loc);
+  void generateMaze();
+  void placeRunner();
+  void placeExit();
+
+  vector<Location> findPathDfs(Location startLoc, Location endLoc, int maxDistToEnd = -1);
+  vector<Location> findPathBfs(Location startLoc, Location endLoc);
+
+  void mazeRunnerInit();
+  void mazeRunnerMove();
+  void mazeRunnerDraw();
+};
+
+bool Matrix8x8TaskHandler::createTask()
+{
+  if (_taskHandle != NULL)
+  {
+    log_w("Task already started");
+    return false;
+  }
+
+  if (!matrix.begin(0x70))
+  {
+    log_e("8x8 not found");
+    return false;
+  }
+  log_d("8x8 found!");
+
+  matrix.setBrightness(5);
+
+  randomSeed(analogRead(0));
+
+  mazeRunnerInit();
+
+  xTaskCreate(matrixTaskWrapper, "Matrix8x8Task", 4096, this, 2, &_taskHandle);
+
+  log_d("8x8 setup complete");
+
+  return true;
+}
+
+void Matrix8x8TaskHandler::matrixTask(void *parameters)
+{
+  log_d("Starting Matrix8x8Task");
+
+  while (1)
+  {
+    if (!display)
+    {
+      matrix.fillScreen(LED_OFF);
+      matrix.writeDisplay();
+      delay(100);
+      continue;
+    }
+
+    mazeRunnerMove();
+    mazeRunnerDraw();
+    delay(50);
+  }
+}
+
+void Matrix8x8TaskHandler::shuffleDirections(Direction *list, int size)
 {
   for (int i = 0; i < size; i++)
   {
@@ -74,34 +149,34 @@ void shuffleDirections(Direction *list, int size)
   }
 }
 
-bool isWall(int x, int y)
+bool Matrix8x8TaskHandler::isWall(int x, int y)
 {
   return maze[y][x];
 }
 
-bool isWall(Location loc)
+bool Matrix8x8TaskHandler::isWall(Location loc)
 {
   return isWall(loc.x, loc.y);
 }
 
-bool isInMazeBounds(int x, int y)
+bool Matrix8x8TaskHandler::isInMazeBounds(int x, int y)
 {
-  return x >= 0 && x < MATRIXWIDTH && y >= 0 && y < MATRIXHEIGHT;
+  return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT;
 }
 
-bool isInMazeBounds(Location loc)
+bool Matrix8x8TaskHandler::isInMazeBounds(Location loc)
 {
   return isInMazeBounds(loc.x, loc.y);
 }
 
-int getAdjacentWallAndBorderCount(int x, int y)
+int Matrix8x8TaskHandler::getAdjacentWallAndBorderCount(int x, int y)
 {
   int count = 0;
   for (int i = 0; i < 4; i++)
   {
     int nx = x + Directions[i].x;
     int ny = y + Directions[i].y;
-    if (nx < 0 || nx >= MATRIXWIDTH || ny < 0 || ny >= MATRIXHEIGHT || maze[ny][nx])
+    if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT || maze[ny][nx])
     {
       count++;
     }
@@ -109,17 +184,17 @@ int getAdjacentWallAndBorderCount(int x, int y)
   return count;
 }
 
-int getAdjacentWallAndBorderCount(Location loc)
+int Matrix8x8TaskHandler::getAdjacentWallAndBorderCount(Location loc)
 {
   return getAdjacentWallAndBorderCount(loc.x, loc.y);
 }
 
-void generateMaze()
+void Matrix8x8TaskHandler::generateMaze()
 {
   // fill maze with walls (true)
-  for (int y = 0; y < MATRIXHEIGHT; y++)
+  for (int y = 0; y < HEIGHT; y++)
   {
-    for (int x = 0; x < MATRIXWIDTH; x++)
+    for (int x = 0; x < WIDTH; x++)
     {
       maze[y][x] = true;
     }
@@ -130,8 +205,8 @@ void generateMaze()
   if (exitLoc.x == -1 || exitLoc.y == -1)
   {
     int edge = random(4);
-    int x = random(MATRIXWIDTH);
-    int y = random(MATRIXHEIGHT);
+    int x = random(WIDTH);
+    int y = random(HEIGHT);
     start = {x, y};
   }
   else
@@ -175,7 +250,7 @@ void generateMaze()
   log_d("Maze generation complete");
 }
 
-void placeRunner()
+void Matrix8x8TaskHandler::placeRunner()
 {
   runnerLoc = {-1, -1};
 
@@ -188,8 +263,8 @@ void placeRunner()
   int attempts = 0;
   while (runnerLoc.x == -1)
   {
-    int x = random(MATRIXWIDTH);
-    int y = random(MATRIXHEIGHT);
+    int x = random(WIDTH);
+    int y = random(HEIGHT);
     if (!isWall(x, y))
     {
       runnerLoc = {x, y};
@@ -199,17 +274,17 @@ void placeRunner()
   log_d("Placing runner at (%d,%d) after %d attempts", runnerLoc.x, runnerLoc.y, attempts);
 }
 
-void placeExit()
+void Matrix8x8TaskHandler::placeExit()
 {
   exitLoc = {-1, -1};
 
   int attempts = 0;
   while (exitLoc.x == -1)
   {
-    int x = random(MATRIXWIDTH);
-    int y = random(MATRIXHEIGHT);
+    int x = random(WIDTH);
+    int y = random(HEIGHT);
     int distance = abs(x - runnerLoc.x) + abs(y - runnerLoc.y);
-    int minDistance = max(0, (MATRIXWIDTH + MATRIXHEIGHT) / 2 - (attempts / 10));
+    int minDistance = max(0, (WIDTH + HEIGHT) / 2 - (attempts / 10));
     if (!isWall(x, y) && distance > minDistance)
     {
       exitLoc = {x, y};
@@ -219,7 +294,7 @@ void placeExit()
   log_d("Placing exit at (%d,%d) after %d attempts", exitLoc.x, exitLoc.y, attempts);
 }
 
-vector<Location> findPathDfs(Location startLoc, Location endLoc, int maxDistToEnd = -1)
+vector<Location> Matrix8x8TaskHandler::findPathDfs(Location startLoc, Location endLoc, int maxDistToEnd)
 {
   stack<pair<Location, int>> locsToVisit = stack<pair<Location, int>>();
   unordered_set<Location> locsVisited = unordered_set<Location>();
@@ -282,7 +357,7 @@ vector<Location> findPathDfs(Location startLoc, Location endLoc, int maxDistToEn
   return vector<Location>();
 }
 
-vector<Location> findPathBfs(Location startLoc, Location endLoc)
+vector<Location> Matrix8x8TaskHandler::findPathBfs(Location startLoc, Location endLoc)
 {
   queue<Location> locsToVisit = queue<Location>();
   unordered_set<Location> locsVisited = unordered_set<Location>();
@@ -333,7 +408,7 @@ vector<Location> findPathBfs(Location startLoc, Location endLoc)
   return vector<Location>();
 }
 
-void MazeRunnerInit()
+void Matrix8x8TaskHandler::mazeRunnerInit()
 {
   log_d("Initializing maze");
 
@@ -343,10 +418,10 @@ void MazeRunnerInit()
 
   // log maze in debug
   log_d("*--------*");
-  for (int y = 0; y < MATRIXHEIGHT; y++)
+  for (int y = 0; y < HEIGHT; y++)
   {
     String row = "|";
-    for (int x = 0; x < MATRIXWIDTH; x++)
+    for (int x = 0; x < WIDTH; x++)
     {
       char c = isWall(x, y) ? '#' : ' ';
       c = (runnerLoc.x == x && runnerLoc.y == y) ? 'S' : c;
@@ -359,12 +434,12 @@ void MazeRunnerInit()
   log_d("*--------*");
 }
 
-void MazeRunnerMove()
+void Matrix8x8TaskHandler::mazeRunnerMove()
 {
   if (runnerLoc == exitLoc)
   {
     log_d("Runner reached exit");
-    MazeRunnerInit();
+    mazeRunnerInit();
     return;
   }
 
@@ -403,57 +478,17 @@ void MazeRunnerMove()
   }
 }
 
-void MazeRunnerDraw()
+void Matrix8x8TaskHandler::mazeRunnerDraw()
 {
-  for (int y = 0; y < MATRIXHEIGHT; y++)
+  for (int y = 0; y < HEIGHT; y++)
   {
-    for (int x = 0; x < MATRIXWIDTH; x++)
+    for (int x = 0; x < WIDTH; x++)
     {
-      matrix8x8.drawPixel(x, y, maze[y][x] ? LED_YELLOW : LED_OFF);
+      matrix.drawPixel(x, y, maze[y][x] ? LED_YELLOW : LED_OFF);
     }
   }
 
-  matrix8x8.drawPixel(exitLoc.x, exitLoc.y, LED_RED);
-  matrix8x8.drawPixel(runnerLoc.x, runnerLoc.y, LED_GREEN);
-  matrix8x8.writeDisplay();
-}
-
-void Matrix8x8Setup()
-{
-  if (!matrix8x8.begin(0x70))
-  {
-    log_e("8x8 not found");
-    return;
-  }
-  log_d("8x8 found!");
-
-  matrix8x8.setBrightness(5);
-
-  randomSeed(analogRead(0));
-
-  MazeRunnerInit();
-
-  xTaskCreate(Matrix8x8Task, "Matrix8x8Task", 4096, NULL, 2, &matrix8x8TaskHandle);
-
-  log_d("8x8 setup complete");
-}
-
-void Matrix8x8Task(void *parameters)
-{
-  log_d("Starting Matrix8x8Task");
-
-  while (1)
-  {
-    if (!display)
-    {
-      matrix8x8.fillScreen(LED_OFF);
-      matrix8x8.writeDisplay();
-      delay(100);
-      continue;
-    }
-
-    MazeRunnerMove();
-    MazeRunnerDraw();
-    delay(50);
-  }
+  matrix.drawPixel(exitLoc.x, exitLoc.y, LED_RED);
+  matrix.drawPixel(runnerLoc.x, runnerLoc.y, LED_GREEN);
+  matrix.writeDisplay();
 }
