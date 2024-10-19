@@ -4,16 +4,19 @@
 class MatrixTaskHandler
 {
 protected:
-    TaskHandle_t taskHandle = NULL;
+    TaskHandle_t _taskHandle = NULL;
+    char _message[100];
 
 public:
     virtual bool createTask() = 0;
 
+    virtual void setMessage(const char *message) { strcpy(_message, message); }
+
     bool suspendTask()
     {
-        if (taskHandle != NULL)
+        if (_taskHandle != NULL)
         {
-            vTaskSuspend(taskHandle);
+            vTaskSuspend(_taskHandle);
             return true;
         }
         return false;

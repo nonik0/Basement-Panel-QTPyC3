@@ -147,7 +147,7 @@ void restDisplay()
   restServer.send(200, "text/plain", display ? "on" : "off");
 }
 
-void restSetMessage(char *curMessage)
+void restSetMessage(std::function<void(const char *)> setMessage)
 {
   if (!restServer.hasArg("message"))
   {
@@ -158,19 +158,20 @@ void restSetMessage(char *curMessage)
 
   String newMessage = restServer.arg("message");
   newMessage = newMessage.substring(0, 100);
-  strcpy(curMessage, newMessage.c_str());
+  setMessage(newMessage.c_str());
+  //strcpy(curMessage, newMessage.c_str());
 
-  restServer.send(200, "text/plain", curMessage);
+  restServer.send(200, "text/plain", newMessage);
 }
 
 void restSetup()
 {
   restServer.on("/", HTTP_GET, restIndex);
   restServer.on("/display", restDisplay);
-  restServer.on("/5x5", HTTP_GET, []()
-                { restSetMessage(matrix5x5Message); });
-  restServer.on("/13x9", HTTP_GET, []()
-                { restSetMessage(matrix13x9Message); });
+  // restServer.on("/5x5", HTTP_GET, []()
+  //               { restSetMessage(matrix5x5Message); });
+  // restServer.on("/13x9", HTTP_GET, []()
+  //               { restSetMessage(matrix13x9Message); });
   // restServer.on("/16x9", HTTP_GET, []()
   //               { restSetMessage(matrix16x9Message); });
   restServer.begin();

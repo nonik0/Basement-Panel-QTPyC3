@@ -1,55 +1,177 @@
+#pragma once
+
 #include <Adafruit_IS31FL3741.h>
 
-#include "Font3x4N.h"
 #include <Fonts/TomThumb.h>
+#include "Font3x4N.h"
+#include "matrix_task_handler.h"
 
-#define MATRIX_WIDTH 13
-#define MATRIX_HEIGHT 9
+extern volatile bool display;
 
-struct ShufflePixel
-{
-  uint16_t color;
-  int x, y;                  // Current position
-  int destX, destY;          // Final position for text
-  int velX, velY;            // Velocity (-1, 0, 1 for X and Y)
-  int speed;                 // Speed of the pixel (how often it moves)
-  int moveCounter;           // Counter to control the speed
-  int stepsInSameDirection;  // Counter for steps in the same direction
-  int maxSteps;              // Maximum steps before changing direction
-  bool reachedFinalPosition; // If pixel has reached final position
-};
-
-ShufflePixel pixels[MATRIX_WIDTH * MATRIX_HEIGHT];
-int totalPixels = 0;
-
-const uint16_t ShuffleColors[] = {
+static const uint16_t ShuffleColors[3] = {
     Adafruit_IS31FL3741::color565(0xBB, 0x30, 0x00),
     Adafruit_IS31FL3741::color565(0xAA, 0x15, 0x00),
     Adafruit_IS31FL3741::color565(0xAA, 0x05, 0x00)};
 
-extern volatile bool display;
-TaskHandle_t matrix13x9TaskHandle = NULL;
-
-Adafruit_IS31FL3741_QT_buffered matrix13x9;
-char *matrix13x9Message;
-int animationPauseMs = 2000;
-int animationCounter = 100;
-bool animationInit = false;
-bool animationOut = false;
-bool animationDone = false;
-unsigned long animationFinishedAt;
-
-void renderMatrix()
+class Matrix13x9TaskHandler : public MatrixTaskHandler
 {
-  matrix13x9.fillScreen(0);
-  for (int i = 0; i < totalPixels; i++)
+private:
+  struct ShufflePixel
   {
-    matrix13x9.drawPixel(pixels[i].x, pixels[i].y, pixels[i].color);
+    uint16_t color;
+    int x, y;                  // Current position
+    int destX, destY;          // Final position for text
+    int velX, velY;            // Velocity (-1, 0, 1 for X and Y)
+    int speed;                 // Speed of the pixel (how often it moves)
+    int moveCounter;           // Counter to control the speed
+    int stepsInSameDirection;  // Counter for steps in the same direction
+    int maxSteps;              // Maximum steps before changing direction
+    bool reachedFinalPosition; // If pixel has reached final position
+  };
+
+  static const uint8_t WIDTH = 13;
+  static const uint8_t HEIGHT = 9;
+
+  Adafruit_IS31FL3741_QT_buffered matrix;
+  ShufflePixel pixels[WIDTH * HEIGHT];
+
+  int totalPixels = 0;
+  int animationPauseMs = 2000;
+  int animationCounter = 100;
+  bool animationInit = false;
+  bool animationOut = false;
+  bool animationDone = false;
+  unsigned long animationFinishedAt;
+
+public:
+  Matrix13x9TaskHandler() {}
+  bool createTask() override;
+
+private:
+  void matrixTask(void *parameters) override;
+
+  void renderMatrix();
+  void movePixel(ShufflePixel &p, int maxDistToDest);
+  void getRandomOuterEdgeCoords(int &x, int &y);
+  void spawnOnOuterEdge(ShufflePixel &p);
+  void initializeCharPixels(int16_t x, int16_t y, char c, uint16_t color, uint8_t &glyphWidth);
+  void initializePixels();
+  bool animatePixels(int maxDistToDest);
+};
+
+bool Matrix13x9TaskHandler::createTask()
+{
+  if (_taskHandle != NULL)
+  {
+    log_w("Task already started");
+    return false;
   }
-  matrix13x9.show();
+
+  strcpy(_message, "NASB|2214");
+
+  if (!matrix.begin(IS3741_ADDR_DEFAULT))
+  {
+    log_e("13x9 not found");
+    return false;
+  }
+
+  // Set brightness to max and bring controller out of shutdown state
+  matrix.setLEDscaling(0x08);
+  matrix.setGlobalCurrent(0xFF);
+  matrix.fill(0);
+  matrix.enable(true); // bring out of shutdown
+  matrix.setRotation(0);
+  matrix.setTextWrap(false);
+  matrix.setFont(&Font3x4N);
+
+  xTaskCreate(matrixTaskWrapper, "Matrix13x9Task", 4096, this, 2, &_taskHandle);
+  log_d("Matrix initialized and task started");
+
+  return true;
 }
 
-void movePixel(ShufflePixel &p, int maxDistToDest)
+void Matrix13x9TaskHandler::matrixTask(void *parameters)
+{
+  log_d("Starting Matrix13x9Task");
+
+  bool isEnabled = true;
+  while (1)
+  {
+    if (!display)
+    {
+      if (isEnabled)
+      {
+        matrix.enable(false);
+        isEnabled = false;
+      }
+      delay(100);
+      continue;
+    }
+    else if (!isEnabled)
+    {
+      matrix.enable(true);
+      isEnabled = true;
+    }
+
+    if (!animationInit)
+    {
+      initializePixels();
+      animationInit = true;
+      animationDone = false;
+    }
+
+    if (!animationDone)
+    {
+      animationCounter = max(0, animationCounter - 1);
+      animationDone = animatePixels(animationCounter / 2);
+      if (animationDone)
+      {
+        animationFinishedAt = millis();
+      }
+    }
+    else if (millis() - animationFinishedAt > animationPauseMs)
+    {
+      animationDone = false;
+
+      // set pixel destinations to outside of matrix
+      if (!animationOut)
+      {
+        for (int i = 0; i < totalPixels; i++)
+        {
+          int x, y;
+          getRandomOuterEdgeCoords(x, y);
+          pixels[i].destX = x;
+          pixels[i].destY = y;
+          pixels[i].reachedFinalPosition = false;
+        }
+        animationOut = true;
+        animationCounter = (13 + 9);
+        animationPauseMs = 500;
+      }
+      else
+      {
+        animationInit = false;
+        animationOut = false;
+        animationCounter = (13 + 9) * 5;
+        animationPauseMs = 2500;
+      }
+    }
+
+    delay(50);
+  }
+}
+
+void Matrix13x9TaskHandler::renderMatrix()
+{
+  matrix.fillScreen(0);
+  for (int i = 0; i < totalPixels; i++)
+  {
+    matrix.drawPixel(pixels[i].x, pixels[i].y, pixels[i].color);
+  }
+  matrix.show();
+}
+
+void Matrix13x9TaskHandler::movePixel(ShufflePixel &p, int maxDistToDest)
 {
   if (!p.reachedFinalPosition)
   {
@@ -102,14 +224,14 @@ void movePixel(ShufflePixel &p, int maxDistToDest)
             {
               p.velX = random(-1, 2);
               p.velY = 0;
-              distToEdge = p.velX > 0 ? MATRIX_WIDTH - p.x : p.x;
+              distToEdge = p.velX > 0 ? WIDTH - p.x : p.x;
               awayFromDest = p.destX - p.x > 0 && p.velX < 0 || p.destX - p.x < 0 && p.velX > 0;
             }
             else
             {
               p.velX = 0;
               p.velY = random(-1, 2);
-              distToEdge = p.velY > 0 ? MATRIX_HEIGHT - p.y : p.y;
+              distToEdge = p.velY > 0 ? HEIGHT - p.y : p.y;
               awayFromDest = p.destY - p.y > 0 && p.velY < 0 || p.destY - p.y < 0 && p.velY > 0;
             }
           } while (distToEdge == 0);
@@ -164,31 +286,31 @@ void movePixel(ShufflePixel &p, int maxDistToDest)
   }
 }
 
-void getRandomOuterEdgeCoords(int &x, int &y)
+void Matrix13x9TaskHandler::getRandomOuterEdgeCoords(int &x, int &y)
 {
   int edge = random(4);
   switch (edge)
   {
   case 0: // Top edge
-    x = random(MATRIX_WIDTH);
+    x = random(WIDTH);
     y = -1;
     break;
   case 1: // Bottom edge
-    x = random(MATRIX_WIDTH);
-    y = MATRIX_HEIGHT;
+    x = random(WIDTH);
+    y = HEIGHT;
     break;
   case 2: // Left edge
     x = -1;
-    y = random(MATRIX_HEIGHT);
+    y = random(HEIGHT);
     break;
   case 3: // Right edge
-    x = MATRIX_WIDTH;
-    y = random(MATRIX_HEIGHT);
+    x = WIDTH;
+    y = random(HEIGHT);
     break;
   }
 }
 
-void spawnOnOuterEdge(ShufflePixel &p)
+void Matrix13x9TaskHandler::spawnOnOuterEdge(ShufflePixel &p)
 {
   // Randomly choose an edge: top, bottom, left, or right
   // Initialize velocity to move inside the bounds of the matrix on first step
@@ -196,26 +318,26 @@ void spawnOnOuterEdge(ShufflePixel &p)
   switch (edge)
   {
   case 0: // Top edge
-    p.x = random(MATRIX_WIDTH);
+    p.x = random(WIDTH);
     p.y = -1;
     p.velX = 0;
     p.velY = 1;
     break;
   case 1: // Bottom edge
-    p.x = random(MATRIX_WIDTH);
-    p.y = MATRIX_HEIGHT;
+    p.x = random(WIDTH);
+    p.y = HEIGHT;
     p.velX = 0;
     p.velY = -1;
     break;
   case 2: // Left edge
     p.x = -1;
-    p.y = random(MATRIX_HEIGHT);
+    p.y = random(HEIGHT);
     p.velX = 1;
     p.velY = 0;
     break;
   case 3: // Right edge
-    p.x = MATRIX_WIDTH;
-    p.y = random(MATRIX_HEIGHT);
+    p.x = WIDTH;
+    p.y = random(HEIGHT);
     p.velX = -1;
     p.velY = 0;
     break;
@@ -227,7 +349,7 @@ void spawnOnOuterEdge(ShufflePixel &p)
   p.maxSteps = random(3, 8);  // Randomize the max number of steps before changing direction
 }
 
-void initializeCharPixels(int16_t x, int16_t y, char c, uint16_t color, uint8_t &glyphWidth)
+void Matrix13x9TaskHandler::initializeCharPixels(int16_t x, int16_t y, char c, uint16_t color, uint8_t &glyphWidth)
 {
   c -= (uint8_t)pgm_read_byte(&Font3x4N.first); // Adjust the character index
 
@@ -265,7 +387,7 @@ void initializeCharPixels(int16_t x, int16_t y, char c, uint16_t color, uint8_t 
   glyphWidth = w;
 }
 
-void initializePixels()
+void Matrix13x9TaskHandler::initializePixels()
 {
   totalPixels = 0;
   uint8_t charWidth;
@@ -273,19 +395,19 @@ void initializePixels()
   int cursorX = 0;
   int cursorY = 3;
 
-  String message = String(matrix13x9Message);
+  String message = String(_message);
   int splitIdx = message.indexOf("|");
 
   String ticker = message.substring(0, splitIdx);
   for (int i = 0; i < ticker.length(); i++)
   {
     uint16_t textColor = ShuffleColors[i % 2];
-    matrix13x9.setTextColor(textColor);
+    matrix.setTextColor(textColor);
     initializeCharPixels(cursorX, cursorY, ticker[i], textColor, charWidth);
     cursorX += charWidth;
   }
 
-  matrix13x9.setCursor(0, 8);
+  matrix.setCursor(0, 8);
   cursorX = 0;
   cursorY = 8;
 
@@ -298,13 +420,13 @@ void initializePixels()
                              : ShuffleColors[2];
     decimalNotSeen &= price[i] != '.';
 
-    matrix13x9.setTextColor(textColor);
+    matrix.setTextColor(textColor);
     initializeCharPixels(cursorX, cursorY, price[i], textColor, charWidth);
     cursorX += charWidth;
   }
 }
 
-bool animatePixels(int maxDistToDest)
+bool Matrix13x9TaskHandler::animatePixels(int maxDistToDest)
 {
   bool allReached = true;
 
@@ -320,101 +442,4 @@ bool animatePixels(int maxDistToDest)
   renderMatrix();
 
   return allReached;
-}
-
-void Matrix13x9Task(void *parameters);
-
-void Matrix13x9Setup()
-{
-  matrix13x9Message = new char[100];
-  strcpy(matrix13x9Message, "NASB|2214");
-
-  if (!matrix13x9.begin(IS3741_ADDR_DEFAULT))
-  {
-    log_e("13x9 not found");
-    return;
-  }
-
-  // Set brightness to max and bring controller out of shutdown state
-  matrix13x9.setLEDscaling(0x08);
-  matrix13x9.setGlobalCurrent(0xFF);
-  matrix13x9.fill(0);
-  matrix13x9.enable(true); // bring out of shutdown
-  matrix13x9.setRotation(0);
-  matrix13x9.setTextWrap(false);
-  matrix13x9.setFont(&Font3x4N);
-
-  xTaskCreate(Matrix13x9Task, "Matrix13x9Task", 4096, NULL, 2, &matrix13x9TaskHandle);
-  log_d("13x9 set up complete");
-}
-
-void Matrix13x9Task(void *parameters)
-{
-  log_d("Starting Matrix13x9Task");
-
-  bool isEnabled = true;
-  while (1)
-  {
-    if (!display)
-    {
-      if (isEnabled)
-      {
-        matrix13x9.enable(false);
-        isEnabled = false;
-      }
-      delay(100);
-      continue;
-    }
-    else if (!isEnabled)
-    {
-      matrix13x9.enable(true);
-      isEnabled = true;
-    }
-
-    if (!animationInit)
-    {
-      initializePixels();
-      animationInit = true;
-      animationDone = false;
-    }
-
-    if (!animationDone)
-    {
-      animationCounter = max(0, animationCounter - 1);
-      animationDone = animatePixels(animationCounter / 2);
-      if (animationDone)
-      {
-        animationFinishedAt = millis();
-      }
-    }
-    else if (millis() - animationFinishedAt > animationPauseMs)
-    {
-      animationDone = false;
-
-      // set pixel destinations to outside of matrix
-      if (!animationOut)
-      {
-        for (int i = 0; i < totalPixels; i++)
-        {
-          int x, y;
-          getRandomOuterEdgeCoords(x, y);
-          pixels[i].destX = x;
-          pixels[i].destY = y;
-          pixels[i].reachedFinalPosition = false;
-        }
-        animationOut = true;
-        animationCounter = (13 + 9);
-        animationPauseMs = 500;
-      }
-      else
-      {
-        animationInit = false;
-        animationOut = false;
-        animationCounter = (13 + 9) * 5;
-        animationPauseMs = 2500;
-      }
-    }
-
-    delay(50);
-  }
 }
