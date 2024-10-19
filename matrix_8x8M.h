@@ -43,7 +43,7 @@ bool Matrix8x8MTaskHandler::createTask()
 
   if (!matrix.begin(0x71))
   {
-    log_e("8x8M not found");
+    log_e("Matrix not found");
     return false;
   }
 

@@ -4,13 +4,15 @@
 class MatrixTaskHandler
 {
 protected:
+    static const int MaxMessageSize = 100;
+
     TaskHandle_t _taskHandle = NULL;
-    char _message[100];
+    char _message[MaxMessageSize];
 
 public:
     virtual bool createTask() = 0;
 
-    virtual void setMessage(const char *message) { strcpy(_message, message); }
+    virtual void setMessage(const char *message) { strncpy(_message, message, MaxMessageSize); }
 
     bool suspendTask()
     {

@@ -7,9 +7,11 @@
 
 WebServer restServer(80);
 extern volatile bool display;
-extern char *matrix5x5Message;
-extern char *matrix13x9Message;
-//extern char *matrix16x9Message;
+extern Matrix5x5TaskHandler matrix5x5TaskHandler;
+extern Matrix8x8TaskHandler matrix8x8TaskHandler;
+extern Matrix8x8MTaskHandler matrix8x8MTaskHandler;
+extern Matrix13x9TaskHandler matrix13x9TaskHandler;
+extern Matrix16x9TaskHandler matrix16x9TaskHandler;
 
 void wifiSetup()
 {
@@ -157,9 +159,7 @@ void restSetMessage(std::function<void(const char *)> setMessage)
   }
 
   String newMessage = restServer.arg("message");
-  newMessage = newMessage.substring(0, 100);
   setMessage(newMessage.c_str());
-  //strcpy(curMessage, newMessage.c_str());
 
   restServer.send(200, "text/plain", newMessage);
 }
@@ -168,12 +168,16 @@ void restSetup()
 {
   restServer.on("/", HTTP_GET, restIndex);
   restServer.on("/display", restDisplay);
-  // restServer.on("/5x5", HTTP_GET, []()
-  //               { restSetMessage(matrix5x5Message); });
-  // restServer.on("/13x9", HTTP_GET, []()
-  //               { restSetMessage(matrix13x9Message); });
-  // restServer.on("/16x9", HTTP_GET, []()
-  //               { restSetMessage(matrix16x9Message); });
+  restServer.on("/5x5", HTTP_GET, []()
+                { restSetMessage([&](const char* msg) { matrix5x5TaskHandler.setMessage(msg); }); });
+  restServer.on("/8x8", HTTP_GET, []()
+                { restSetMessage([&](const char* msg) { matrix8x8TaskHandler.setMessage(msg); }); });
+  restServer.on("/8x8M", HTTP_GET, []()
+                { restSetMessage([&](const char* msg) { matrix8x8MTaskHandler.setMessage(msg); }); });
+  restServer.on("/13x9", HTTP_GET, []()
+                { restSetMessage([&](const char* msg) { matrix13x9TaskHandler.setMessage(msg); }); });
+  restServer.on("/16x9", HTTP_GET, []()
+                { restSetMessage([&](const char* msg) { matrix16x9TaskHandler.setMessage(msg); }); });
   restServer.begin();
 
   log_d("REST server running");

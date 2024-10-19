@@ -100,10 +100,9 @@ bool Matrix8x8TaskHandler::createTask()
 
   if (!matrix.begin(0x70))
   {
-    log_e("8x8 not found");
+    log_e("Matrix not found");
     return false;
   }
-  log_d("8x8 found!");
 
   matrix.setBrightness(5);
 
