@@ -68,7 +68,7 @@ void checkWifiStatus()
 
 void mDnsSetup()
 {
-  if (!MDNS.begin("i2c-led-controller"))
+  if (!MDNS.begin("basement-panel-qtpyc3"))
   {
     log_e("Error setting up MDNS responder!");
     return;
@@ -81,7 +81,7 @@ void otaSetup()
 {
   Serial.println("OTA setting up...");
 
-  ArduinoOTA.setHostname("I2C-LED-Controller");
+  ArduinoOTA.setHostname("Basement-Panel-QTPyC3");
 
   ArduinoOTA
       .onStart([]()
