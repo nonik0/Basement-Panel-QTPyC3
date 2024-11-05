@@ -3,11 +3,11 @@
 #include <Adafruit_IS31FL3731.h>
 
 #include "Font3x4N.h"
-#include "matrix_task_handler.h"
+#include "task_handler.h"
 
 extern volatile bool display;
 
-class Matrix16x9TaskHandler : public MatrixTaskHandler
+class Matrix16x9TaskHandler : public TaskHandler
 {
 private:
     static const uint8_t WIDTH = 16;
@@ -29,7 +29,7 @@ public:
     void setMessage(const char *message);
 
 private:
-    void matrixTask(void *parameters) override;
+    void task(void *parameters) override;
 
     void initializeMessage();
     void setCharPixels(int16_t x, int16_t y, char c, uint8_t &glyphWidth);
@@ -53,7 +53,7 @@ bool Matrix16x9TaskHandler::createTask()
     strcpy(_message, "123");
     initializeMessage();
 
-    xTaskCreate(matrixTaskWrapper, "Matrix16x9Task", 4096, this, 1, &_taskHandle);
+    xTaskCreate(taskWrapper, "Matrix16x9Task", 4096, this, 1, &_taskHandle); // highest priority of tasks for smooth animation: TODO: parameterize
     log_d("Matrix initialized and task started");
 
     return true;
@@ -61,11 +61,11 @@ bool Matrix16x9TaskHandler::createTask()
 
 void Matrix16x9TaskHandler::setMessage(const char *message)
 {
-    MatrixTaskHandler::setMessage(message);
+    TaskHandler::setMessage(message);
     initializeMessage();
 }
 
-void Matrix16x9TaskHandler::matrixTask(void *parameters)
+void Matrix16x9TaskHandler::task(void *parameters)
 {
     log_d("Starting Matrix16x9Task");
 

@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-class MatrixTaskHandler
+class TaskHandler
 {
 protected:
     static const int MaxMessageSize = 100;
@@ -11,6 +11,8 @@ protected:
 
 public:
     virtual bool createTask() = 0;
+
+    char* getMessage() { return _message; }
 
     virtual void setMessage(const char *message) { strncpy(_message, message, MaxMessageSize); }
 
@@ -25,11 +27,11 @@ public:
     }
 
 protected:
-    virtual void matrixTask(void *parameters) = 0;
+    virtual void task(void *parameters) = 0;
 
-    static void matrixTaskWrapper(void *parameters)
+    static void taskWrapper(void *parameters)
     {
-        MatrixTaskHandler *handler = static_cast<MatrixTaskHandler *>(parameters);
-        handler->matrixTask(parameters);
+        TaskHandler *handler = static_cast<TaskHandler *>(parameters);
+        handler->task(parameters);
     }
 };

@@ -7,6 +7,7 @@
 
 WebServer restServer(80);
 extern volatile bool display;
+extern AttinyTaskHandler attinyTaskHandler;
 extern Matrix5x5TaskHandler matrix5x5TaskHandler;
 extern Matrix8x8TaskHandler matrix8x8TaskHandler;
 extern Matrix8x8MTaskHandler matrix8x8MTaskHandler;
@@ -149,6 +150,18 @@ void restDisplay()
   restServer.send(200, "text/plain", display ? "on" : "off");
 }
 
+void restSensors()
+{
+  String response = "{";
+  response += "\"humidityAvg\": " + String(attinyTaskHandler.getWeightedHumidityReading()) + ",";
+  response += "\"humidityRdg\": " + String(attinyTaskHandler.getLastHumidityReading()) + ",";
+  response += "\"gasAvg\": " + String(attinyTaskHandler.getWeightedGasReading()) + ",";
+  response += "\"gasRdg\": " + String(attinyTaskHandler.getLastGasReading());
+  response += "}";
+
+  restServer.send(200, "application/json", response);
+}
+
 void restSetMessage(std::function<void(const char *)> setMessage)
 {
   if (!restServer.hasArg("message"))
@@ -168,16 +181,22 @@ void restSetup()
 {
   restServer.on("/", HTTP_GET, restIndex);
   restServer.on("/display", restDisplay);
+  restServer.on("/sensors", restSensors);
   restServer.on("/5x5", HTTP_GET, []()
-                { restSetMessage([&](const char* msg) { matrix5x5TaskHandler.setMessage(msg); }); });
+                { restSetMessage([&](const char *msg)
+                                 { matrix5x5TaskHandler.setMessage(msg); }); });
   restServer.on("/8x8", HTTP_GET, []()
-                { restSetMessage([&](const char* msg) { matrix8x8TaskHandler.setMessage(msg); }); });
+                { restSetMessage([&](const char *msg)
+                                 { matrix8x8TaskHandler.setMessage(msg); }); });
   restServer.on("/8x8M", HTTP_GET, []()
-                { restSetMessage([&](const char* msg) { matrix8x8MTaskHandler.setMessage(msg); }); });
+                { restSetMessage([&](const char *msg)
+                                 { matrix8x8MTaskHandler.setMessage(msg); }); });
   restServer.on("/13x9", HTTP_GET, []()
-                { restSetMessage([&](const char* msg) { matrix13x9TaskHandler.setMessage(msg); }); });
+                { restSetMessage([&](const char *msg)
+                                 { matrix13x9TaskHandler.setMessage(msg); }); });
   restServer.on("/16x9", HTTP_GET, []()
-                { restSetMessage([&](const char* msg) { matrix16x9TaskHandler.setMessage(msg); }); });
+                { restSetMessage([&](const char *msg)
+                                 { matrix16x9TaskHandler.setMessage(msg); }); });
   restServer.begin();
 
   log_d("REST server running");

@@ -3,11 +3,11 @@
 
 #include <Adafruit_LEDBackpack.h>
 
-#include "matrix_task_handler.h"
+#include "task_handler.h"
 
 extern volatile bool display;
 
-class Matrix8x8MTaskHandler : public MatrixTaskHandler
+class Matrix8x8MTaskHandler : public TaskHandler
 {
 private:
   static const uint8_t REFRESH_TIME = 15;
@@ -29,7 +29,7 @@ public:
   bool createTask() override;
 
 private:
-  void matrixTask(void *parameters) override;
+  void task(void *parameters) override;
 };
 
 
@@ -60,13 +60,13 @@ bool Matrix8x8MTaskHandler::createTask()
     }
   }
 
-  xTaskCreate(matrixTaskWrapper, "Matrix8x8MTask", 4096, this, 1, &_taskHandle);
+  xTaskCreate(taskWrapper, "Matrix8x8MTask", 4096, this, 2, &_taskHandle);
   log_d("Matrix initialized and task started");
 
   return true;
 }
 
-void Matrix8x8MTaskHandler::matrixTask(void *parameters)
+void Matrix8x8MTaskHandler::task(void *parameters)
 {
   log_d("Starting Matrix8x8MTask");
 

@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "matrix_task_handler.h"
+#include "task_handler.h"
 
 using namespace std;
 
@@ -53,7 +53,7 @@ const Direction Up = {0, -1};
 const Direction Down = {0, 1};
 const Direction Directions[] = {Left, Right, Up, Down};
 
-class Matrix8x8TaskHandler : public MatrixTaskHandler
+class Matrix8x8TaskHandler : public TaskHandler
 {
 private:
   static const uint8_t WIDTH = 8;
@@ -70,7 +70,7 @@ public:
   bool createTask() override;
 
 private:
-  void matrixTask(void *parameters) override;
+  void task(void *parameters) override;
   void shuffleDirections(Direction *list, int size);
   bool isWall(int x, int y);
   bool isWall(Location loc);
@@ -110,14 +110,14 @@ bool Matrix8x8TaskHandler::createTask()
 
   mazeRunnerInit();
 
-  xTaskCreate(matrixTaskWrapper, "Matrix8x8Task", 4096, this, 2, &_taskHandle);
+  xTaskCreate(taskWrapper, "Matrix8x8Task", 4096, this, 2, &_taskHandle);
 
   log_d("Matrix setup complete");
 
   return true;
 }
 
-void Matrix8x8TaskHandler::matrixTask(void *parameters)
+void Matrix8x8TaskHandler::task(void *parameters)
 {
   log_d("Starting Matrix8x8Task");
 

@@ -1,4 +1,5 @@
 
+#include "attiny.h"
 #include "matrix_5x5.h"
 #include "matrix_8x8.h"
 #include "matrix_8x8M.h"
@@ -7,6 +8,7 @@
 #include "services.hpp"
 
 volatile bool display = true;
+AttinyTaskHandler attinyTaskHandler;
 Matrix5x5TaskHandler matrix5x5TaskHandler;
 Matrix8x8TaskHandler matrix8x8TaskHandler;
 Matrix8x8MTaskHandler matrix8x8MTaskHandler;
@@ -27,6 +29,7 @@ void setup()
   otaSetup();
   restSetup();
 
+  attinyTaskHandler.createTask();
   matrix5x5TaskHandler.createTask();
   matrix8x8TaskHandler.createTask();
   matrix8x8MTaskHandler.createTask();

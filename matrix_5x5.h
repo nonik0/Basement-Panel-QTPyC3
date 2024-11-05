@@ -1,11 +1,13 @@
+#pragma once
+
 #include <Adafruit_NeoMatrix.h>
 #include <Fonts/TomThumb.h>
 
-#include "matrix_task_handler.h"
+#include "task_handler.h"
 
 extern volatile bool display;
 
-class Matrix5x5TaskHandler : public MatrixTaskHandler
+class Matrix5x5TaskHandler : public TaskHandler
 {
 private:
     static const uint8_t PIN = A3;
@@ -28,7 +30,7 @@ public:
     bool createTask() override;
 
 private:
-    void matrixTask(void *parameters) override;
+    void task(void *parameters) override;
 };
 
 bool Matrix5x5TaskHandler::createTask()
@@ -53,13 +55,13 @@ bool Matrix5x5TaskHandler::createTask()
     uint16_t d2;
     _matrix.getTextBounds(_message, 0, 0, &d1, &d1, &_message_width, &d2);
 
-    xTaskCreate(matrixTaskWrapper, "Matrix5x5Task", 4096, this, 2, &_taskHandle);
+    xTaskCreate(taskWrapper, "Matrix5x5Task", 4096, this, 2, &_taskHandle);
     log_d("Matrix setup complete");
 
     return true;
 }
 
-void Matrix5x5TaskHandler::matrixTask(void *parameters)
+void Matrix5x5TaskHandler::task(void *parameters)
 {
     log_d("Starting Matrix5x5Task");
 

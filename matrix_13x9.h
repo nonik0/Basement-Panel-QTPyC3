@@ -4,7 +4,7 @@
 
 #include <Fonts/TomThumb.h>
 #include "Font3x4N.h"
-#include "matrix_task_handler.h"
+#include "task_handler.h"
 
 extern volatile bool display;
 
@@ -13,7 +13,7 @@ static const uint16_t ShuffleColors[3] = {
     Adafruit_IS31FL3741::color565(0xAA, 0x15, 0x00),
     Adafruit_IS31FL3741::color565(0xAA, 0x05, 0x00)};
 
-class Matrix13x9TaskHandler : public MatrixTaskHandler
+class Matrix13x9TaskHandler : public TaskHandler
 {
 private:
   struct ShufflePixel
@@ -48,7 +48,7 @@ public:
   bool createTask() override;
 
 private:
-  void matrixTask(void *parameters) override;
+  void task(void *parameters) override;
 
   void renderMatrix();
   void movePixel(ShufflePixel &p, int maxDistToDest);
@@ -84,13 +84,13 @@ bool Matrix13x9TaskHandler::createTask()
   _matrix.setTextWrap(false);
   _matrix.setFont(&Font3x4N);
 
-  xTaskCreate(matrixTaskWrapper, "Matrix13x9Task", 4096, this, 2, &_taskHandle);
+  xTaskCreate(taskWrapper, "Matrix13x9Task", 4096, this, 2, &_taskHandle);
   log_d("Matrix initialized and task started");
 
   return true;
 }
 
-void Matrix13x9TaskHandler::matrixTask(void *parameters)
+void Matrix13x9TaskHandler::task(void *parameters)
 {
   log_d("Starting Matrix13x9Task");
 
