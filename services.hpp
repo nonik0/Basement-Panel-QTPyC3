@@ -119,7 +119,7 @@ void otaSetup()
 void restIndex()
 {
   Serial.println("Serving index.html");
-  restServer.send(200, "text/plain", "test");
+  restServer.send(200, "text/plain", "Basement-Panel-QTPyC3");
   Serial.println("Served index.html");
 }
 
