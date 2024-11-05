@@ -31,6 +31,7 @@ private:
     Adafruit_seesaw attinySs;
     vector<uint16_t> humidityReadings;
     vector<uint16_t> gasReadings;
+    bool ledState = false;
 
     bool saveOverriddenMessage = false;
     const unsigned long MinOverrideTime = 10000;
@@ -119,12 +120,15 @@ void AttinyTaskHandler::task(void *parameters)
             snprintf(gasReadingStr, MaxMessageSize, "%03d", gasReading);
             matrixTaskHandler->setMessage(gasReadingStr);
         }
+
+        // led alternates with each loop
+        ledState = !ledState;
     }
 }
 
 uint16_t AttinyTaskHandler::readSensor(uint8_t pin, vector<uint16_t> &readings)
 {
-    attinySs.digitalWrite(SS_ATTINY_LED_PIN, HIGH);
+    attinySs.digitalWrite(SS_ATTINY_LED_PIN, ledState);
 
     uint16_t reading = attinySs.analogRead(pin);
     readings.push_back(reading);
@@ -133,7 +137,8 @@ uint16_t AttinyTaskHandler::readSensor(uint8_t pin, vector<uint16_t> &readings)
         readings.erase(readings.begin());
     }
 
-    attinySs.digitalWrite(SS_ATTINY_LED_PIN, LOW);
+    delay(100); // give time to see LED change
+    attinySs.digitalWrite(SS_ATTINY_LED_PIN, !ledState);
 
     return reading;
 }
