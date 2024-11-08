@@ -21,12 +21,13 @@ using namespace std;
 
 extern volatile bool display;
 extern Matrix16x9TaskHandler matrix16x9TaskHandler;
-TaskHandler* matrixTaskHandler = &matrix16x9TaskHandler;
+TaskHandler *matrixTaskHandler = &matrix16x9TaskHandler;
 
 class AttinyTaskHandler : public TaskHandler
 {
 private:
-    const size_t AverageCount = 5;
+    const size_t AverageCount = 5; // avg of last X readings
+    const size_t MaxCount = 10;   // max of last X readings
 
     Adafruit_seesaw attinySs;
     vector<uint16_t> humidityReadings;
@@ -36,7 +37,6 @@ private:
     bool saveOverriddenMessage = false;
     const unsigned long MinOverrideTime = 10000;
     unsigned long messageOverriddenMillis = 0;
-    uint16_t maxGasReading = 0;
 
 public:
     AttinyTaskHandler() {}
@@ -44,10 +44,10 @@ public:
     uint16_t getLastHumidityReading() { return humidityReadings.back(); }
     uint16_t getLastGasReading() { return gasReadings.back(); }
     uint16_t getWeightedHumidityReading();
-    uint16_t getWeightedGasReading();
+    uint16_t getMaxGasReading();
 
 private:
-    uint16_t readSensor(uint8_t pin, vector<uint16_t> &readings);
+    uint16_t readSensor(uint8_t pin, vector<uint16_t> &readings, size_t maxCount);
     void task(void *parameters) override;
 };
 
@@ -82,57 +82,69 @@ void AttinyTaskHandler::task(void *parameters)
 
     uint16_t humidityReading = 0;
     uint16_t gasReading = 0;
+    uint16_t maxGasReading = 0;
+    char gasReadingStr[MaxMessageSize];
     while (1)
     {
-        humidityReading = readSensor(SS_ATTINY_HUM_PIN, humidityReadings);
+        humidityReading = readSensor(SS_ATTINY_HUM_PIN, humidityReadings, AverageCount);
         delay(500);
 
-        gasReading = readSensor(SS_ATTINY_GAS_PIN, gasReadings);
-        delay(500);
 
-        if (saveOverriddenMessage) {
-            // override matrix message when gas detected
-            if (getWeightedGasReading() > 300) // can optimize avg calculation by keeping a sum and subtracting the oldest reading
-            {
-                // first high reading, save existing message
-                if (maxGasReading == 0) {
-                    strncpy(_message, matrixTaskHandler->getMessage(), MaxMessageSize);
-                }
+        gasReading = readSensor(SS_ATTINY_GAS_PIN, gasReadings, MaxCount);
 
-                // update whenever reading increases
-                if (gasReading > maxGasReading) {        
-                    char drunkReading[MaxMessageSize];
-                    snprintf(drunkReading, MaxMessageSize, "DRUNK:%d", gasReading); // TODO: calibrate and scale to BAC
-                    matrixTaskHandler->setMessage(drunkReading);
-                    maxGasReading = gasReading;
-                    messageOverriddenMillis = millis();
-                }
-            }
-            else if (maxGasReading > 0 && millis() - messageOverriddenMillis > MinOverrideTime)
-            {
-                matrixTaskHandler->setMessage(_message);
-                maxGasReading = 0;
-            }
-        }
-        else {
-            // set gas reading as matrix message
-            char gasReadingStr[MaxMessageSize];
-            snprintf(gasReadingStr, MaxMessageSize, "%03d", gasReading);
+        uint16_t newMaxGasReading = getMaxGasReading();
+        if (newMaxGasReading != maxGasReading)
+        {
+            maxGasReading = newMaxGasReading;
+            snprintf(gasReadingStr, MaxMessageSize, "%03d", getMaxGasReading());
             matrixTaskHandler->setMessage(gasReadingStr);
         }
+
+        delay(500);
+
+        // if (saveOverriddenMessage) {
+        //     // override matrix message when gas detected
+        //     if (getMaxGasReading() > 300) // can optimize avg calculation by keeping a sum and subtracting the oldest reading
+        //     {
+        //         // first high reading, save existing message
+        //         if (maxGasReading == 0) {
+        //             strncpy(_message, matrixTaskHandler->getMessage(), MaxMessageSize);
+        //         }
+
+        //         // update whenever reading increases
+        //         if (gasReading > maxGasReading) {
+        //             char drunkReading[MaxMessageSize];
+        //             snprintf(drunkReading, MaxMessageSize, "DRUNK:%d", gasReading); // TODO: calibrate and scale to BAC
+        //             matrixTaskHandler->setMessage(drunkReading);
+        //             maxGasReading = gasReading;
+        //             messageOverriddenMillis = millis();
+        //         }
+        //     }
+        //     else if (maxGasReading > 0 && millis() - messageOverriddenMillis > MinOverrideTime)
+        //     {
+        //         matrixTaskHandler->setMessage(_message);
+        //         maxGasReading = 0;
+        //     }
+        // }
+        // else {
+        // set gas reading as matrix message
+        // char gasReadingStr[MaxMessageSize];
+        // snprintf(gasReadingStr, MaxMessageSize, "%03d", gasReading);
+        // matrixTaskHandler->setMessage(gasReadingStr);
+        // }
 
         // led alternates with each loop
         ledState = !ledState;
     }
 }
 
-uint16_t AttinyTaskHandler::readSensor(uint8_t pin, vector<uint16_t> &readings)
+uint16_t AttinyTaskHandler::readSensor(uint8_t pin, vector<uint16_t> &readings, size_t maxCount)
 {
     attinySs.digitalWrite(SS_ATTINY_LED_PIN, ledState);
 
     uint16_t reading = attinySs.analogRead(pin);
     readings.push_back(reading);
-    if (readings.size() > AverageCount)
+    while (readings.size() > maxCount)
     {
         readings.erase(readings.begin());
     }
@@ -153,12 +165,15 @@ uint16_t AttinyTaskHandler::getWeightedHumidityReading()
     return sum / humidityReadings.size();
 }
 
-uint16_t AttinyTaskHandler::getWeightedGasReading()
+uint16_t AttinyTaskHandler::getMaxGasReading()
 {
-    uint32_t sum = 0;
+    uint16_t max = 0;
     for (uint16_t reading : gasReadings)
     {
-        sum += reading;
+        if (reading > max)
+        {
+            max = reading;
+        }
     }
-    return sum / gasReadings.size();
+    return max;
 }

@@ -155,7 +155,7 @@ void restSensors()
   String response = "{";
   response += "\"humidityAvg\": " + String(attinyTaskHandler.getWeightedHumidityReading()) + ",";
   response += "\"humidityRdg\": " + String(attinyTaskHandler.getLastHumidityReading()) + ",";
-  response += "\"gasAvg\": " + String(attinyTaskHandler.getWeightedGasReading()) + ",";
+  response += "\"gasMax\": " + String(attinyTaskHandler.getMaxGasReading()) + ",";
   response += "\"gasRdg\": " + String(attinyTaskHandler.getLastGasReading());
   response += "}";
 

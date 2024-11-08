@@ -19,6 +19,7 @@ private:
     // uint8_t sweep[] = {1, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 60, 40, 30, 20, 15, 10, 8, 6, 4, 3, 2, 1};
 
     Adafruit_IS31FL3731 _matrix = Adafruit_IS31FL3731();
+    bool _isNewMessage = false;
     bool _messagePixels[HEIGHT][WIDTH];
     int _direction = 1;
     int _scanX = -1;
@@ -31,7 +32,7 @@ public:
 private:
     void task(void *parameters) override;
 
-    void initializeMessage();
+    void initializeMessagePixels();
     void setCharPixels(int16_t x, int16_t y, char c, uint8_t &glyphWidth);
 };
 
@@ -51,7 +52,7 @@ bool Matrix16x9TaskHandler::createTask()
 
     _matrix.setFont(&Font3x4N);
     strcpy(_message, "123");
-    initializeMessage();
+    initializeMessagePixels();
 
     xTaskCreate(taskWrapper, "Matrix16x9Task", 4096, this, 1, &_taskHandle); // highest priority of tasks for smooth animation: TODO: parameterize
     log_d("Matrix initialized and task started");
@@ -62,7 +63,7 @@ bool Matrix16x9TaskHandler::createTask()
 void Matrix16x9TaskHandler::setMessage(const char *message)
 {
     TaskHandler::setMessage(message);
-    initializeMessage();
+    _isNewMessage = true; // signals to task to reinitialize message after scanning
 }
 
 void Matrix16x9TaskHandler::task(void *parameters)
@@ -87,6 +88,10 @@ void Matrix16x9TaskHandler::task(void *parameters)
         {
             _scanX = -1;
             _direction = 1;
+            if (_isNewMessage)
+            {
+                initializeMessagePixels();
+            }
         }
 
         for (int scanIndex = 0; scanIndex < ScanWidth; scanIndex++)
@@ -100,8 +105,8 @@ void Matrix16x9TaskHandler::task(void *parameters)
             for (int y = 0; y < HEIGHT; y++)
             {
                 // matrix16x9.drawPixel(x, y, scan[scanIndex]);
-                uint16_t brightness = _messagePixels[y][x] //&& brightness != ScanVals[0])
-                                          ? 0
+                uint16_t brightness = _messagePixels[y][x] && _direction > 0 && scanIndex > 2
+                                          ? ScanVals[2]
                                           : ScanVals[scanIndex];
 
                 _matrix.drawPixel(x, y, brightness);
@@ -117,13 +122,19 @@ void Matrix16x9TaskHandler::task(void *parameters)
     }
 }
 
-void Matrix16x9TaskHandler::initializeMessage()
+void Matrix16x9TaskHandler::initializeMessagePixels()
 {
+    if (!_isNewMessage)
+    {
+        log_w("Message already initialized");
+        return;
+    }
+
     memset(_messagePixels, 0, sizeof(_messagePixels));
 
     // iterate over the message and set the pixels
-    int cursorX = 2;
-    int cursorY = 5;
+    int cursorX = 3;
+    int cursorY = 6;
     String message = String(_message);
     for (int i = 0; i < message.length(); i++)
     {
@@ -131,6 +142,8 @@ void Matrix16x9TaskHandler::initializeMessage()
         setCharPixels(cursorX, cursorY, message[i], charWidth);
         cursorX += charWidth + 1;
     }
+
+    _isNewMessage = false;
 }
 
 void Matrix16x9TaskHandler::setCharPixels(int16_t x, int16_t y, char c, uint8_t &glyphWidth)
