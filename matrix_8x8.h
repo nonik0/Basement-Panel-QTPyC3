@@ -56,6 +56,7 @@ const Direction Directions[] = {Left, Right, Up, Down};
 class Matrix8x8TaskHandler : public TaskHandler
 {
 private:
+  static const uint8_t I2C_ADDR = 0x70;
   static const uint8_t WIDTH = 8;
   static const uint8_t HEIGHT = 8;
 
@@ -98,7 +99,7 @@ bool Matrix8x8TaskHandler::createTask()
     return false;
   }
 
-  if (!matrix.begin(0x70))
+  if (!matrix.begin(I2C_ADDR))
   {
     log_e("Matrix not found");
     return false;

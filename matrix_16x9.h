@@ -10,6 +10,7 @@ extern volatile bool display;
 class Matrix16x9TaskHandler : public TaskHandler
 {
 private:
+    static const uint8_t I2C_ADDR = ISSI_ADDR_DEFAULT;
     static const uint8_t WIDTH = 16;
     static const uint8_t HEIGHT = 9;
     static constexpr const char *TAG = "Matrix16x9TaskHandler";
@@ -44,7 +45,7 @@ bool Matrix16x9TaskHandler::createTask()
         return false;
     }
 
-    if (!_matrix.begin())
+    if (!_matrix.begin(I2C_ADDR))
     {
         log_e("Matrix not found");
         return false;

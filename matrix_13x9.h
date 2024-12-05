@@ -29,6 +29,7 @@ private:
     bool reachedFinalPosition; // If pixel has reached final position
   };
 
+  static const uint8_t I2C_ADDR = IS3741_ADDR_DEFAULT;
   static const uint8_t WIDTH = 13;
   static const uint8_t HEIGHT = 9;
 
@@ -69,7 +70,7 @@ bool Matrix13x9TaskHandler::createTask()
 
   strcpy(_message, "ABCD|123.4");
 
-  if (!_matrix.begin(IS3741_ADDR_DEFAULT))
+  if (!_matrix.begin(I2C_ADDR))
   {
     log_e("Matrix not found");
     return false;

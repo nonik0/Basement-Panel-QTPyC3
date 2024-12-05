@@ -10,6 +10,7 @@ extern volatile bool display;
 class Matrix8x8MTaskHandler : public TaskHandler
 {
 private:
+  static const uint8_t I2C_ADDR = 0x71;
   static const uint8_t REFRESH_TIME = 15;
   static const uint8_t BASE_DELAY = 20;
   static const uint8_t WIDTH = 8;
@@ -41,7 +42,7 @@ bool Matrix8x8MTaskHandler::createTask()
     return false;
   }
 
-  if (!matrix.begin(0x71))
+  if (!matrix.begin(I2C_ADDR))
   {
     log_e("Matrix not found");
     return false;

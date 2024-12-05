@@ -26,6 +26,7 @@ TaskHandler *matrixTaskHandler = &matrix16x9TaskHandler;
 class AttinyTaskHandler : public TaskHandler
 {
 private:
+    static const uint8_t I2C_ADDR = SEESAW_ADDRESS;
     const size_t AverageCount = 5; // avg of last X readings
     const size_t MaxCount = 10;   // max of last X readings
 
@@ -61,7 +62,7 @@ bool AttinyTaskHandler::createTask()
         return false;
     }
 
-    if (!attinySs.begin())
+    if (!attinySs.begin(I2C_ADDR))
     {
         log_e("attiny seesaw not found!");
         return false;
