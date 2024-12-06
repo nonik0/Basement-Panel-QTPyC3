@@ -191,10 +191,10 @@ void MazeRunner::init()
 bool MazeRunner::update()
 {
   // pause before reset to show goal, catch, or error
-  if (_resetDelay > 0)
+  if (_resetDelay >= 0)
   {
     _resetDelay--;
-    if (_resetDelay <= 0)
+    if (_resetDelay < 0)
     {
       init();
       drawMaze();
@@ -214,7 +214,7 @@ bool MazeRunner::update()
       if (_setStatus)
         _setStatus(_runnerColor);
       drawMaze(); // redraw runner on goal
-      _resetDelay = _sentryActive ? GoalDelay : 0;
+      _resetDelay = _sentryActive ? GoalDelay : 0; // no delay if no sentry
       return true;
     }
 
