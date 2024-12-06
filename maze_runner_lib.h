@@ -51,44 +51,51 @@ const Direction Directions[] = {Left, Right, Up, Down};
 class MazeRunner
 {
 private:
+  // valid only with sentry present (for now)
   const uint8_t RunnerFear = 10; // extra sense when fleeing
-  const uint8_t RunnerSense = 2;
-  const uint8_t RunnerSpeed = 3;
+  const uint8_t RunnerSense = 2; // sense is path search distance
+  const uint8_t RunnerSpeed = 3; // speed is cooldown in cycles (call to update)
   const uint8_t SentrySense = 2;
   const uint8_t SentrySpeed = 5;
-  const int GoalDelay = 10;
+  const int GoalDelay = 10; // delay cycles before generating new maze
   const int CatchDelay = 30;
-  const int ErrorDelay = 100;
+  const int ErrorDelay = 2^16;
 
   int _width;
   int _height;
   bool **_mazeWalls;
-  int _mazeExtraWallsToRemove = 1;
-
-  uint32_t _pathColor;
-  uint32_t _wallColor;
-
-  Location _runnerLoc = NullLocation;
-  Location _runnerSentryKnownLoc = NullLocation;
-  deque<Location> _runnerPath;
-  uint32_t _runnerColor;
-  uint8_t _runnerCooldown = 0;
   int _resetDelay = -1;
-
-  Location _sentryLoc = NullLocation;
-  Location _sentryExitKnownLoc = NullLocation;
-  deque<Location> _sentryPath;
-  uint32_t _sentryColor;
-  uint8_t _sentryCooldown = 0;
-
-  uint32_t _exitColor;
   Location _exitLoc = NullLocation;
 
-  // function callback to draw pixels
+  // TODO: improve by enforcing two paths to goal from runner pos when generating maze wit sentry active?
+  int _mazeExtraWallsToRemove = 1; // extra walls to remove when sentry present to give runner more options potentially
+
+  // colors
+  uint32_t _pathColor;
+  uint32_t _wallColor;
+  uint32_t _runnerColor;
+  uint32_t _sentryColor;
+  uint32_t _exitColor;
+
+  // runner
+  Location _runnerLoc = NullLocation;
+  deque<Location> _runnerPath;
+  Location _runnerSentryKnownLoc = NullLocation;
+  uint8_t _runnerCooldown = 0;
+
+  // sentry
+  bool _sentryActive;
+  Location _sentryLoc = NullLocation;
+  deque<Location> _sentryPath;
+  //Location _sentryExitKnownLoc = NullLocation;
+  uint8_t _sentryCooldown = 0;
+
+  // function callbacks to draw pixels
   std::function<void(int, int, uint32_t)> _drawPixel;
   std::function<void(uint32_t)> _setStatus;
 
 public:
+  // with sentry
   MazeRunner(
       int width, int height,
       uint32_t pathColor, uint32_t wallColor,
@@ -96,6 +103,7 @@ public:
       uint32_t exitColor,
       std::function<void(int, int, uint32_t)> drawPixel,
       std::function<void(uint32_t)> setStatus = nullptr);
+  // without sentry
   MazeRunner(
       int width, int height,
       uint32_t pathColor, uint32_t wallColor,
@@ -103,10 +111,10 @@ public:
       uint32_t exitColor,
       std::function<void(int, int, uint32_t)> drawPixel,
       std::function<void(uint32_t)> setStatus = nullptr)
-      : MazeRunner(width, height, pathColor, wallColor, runnerColor, pathColor, exitColor, drawPixel, setStatus) {} // sentry disabled if same color as path
+      : MazeRunner(width, height, pathColor, wallColor, runnerColor, pathColor, exitColor, drawPixel, setStatus) {};
 
   void init();
-  bool update(); // returns true if any pixel changed
+  bool update(); // returns true if any pixel changed to signal for display update
 
 private:
   bool moveRunner();
@@ -140,6 +148,7 @@ MazeRunner::MazeRunner(int width, int height, uint32_t pathColor, uint32_t wallC
   _pathColor = pathColor;
   _wallColor = wallColor;
   _runnerColor = runnerColor;
+  _sentryActive = sentryColor != pathColor;
   _sentryColor = sentryColor;
   _exitColor = exitColor;
   _drawPixel = drawPixel;
@@ -202,20 +211,24 @@ bool MazeRunner::update()
     if (_runnerLoc == _exitLoc)
     {
       log_d("Runner reached exit");
-      _setStatus(_runnerColor);
+      if (_setStatus)
+        _setStatus(_runnerColor);
       drawMaze(); // redraw runner on goal
-      _resetDelay = GoalDelay;
+      _resetDelay = _sentryActive ? GoalDelay : 0;
       return true;
     }
 
-    update |= moveSentry();
-    if (_sentryLoc == _runnerLoc)
+    if (_sentryActive)
     {
-      log_d("Runner caught by sentry");
-      // don't redraw sentry on runner
-      _setStatus(_sentryColor);
-      _resetDelay = CatchDelay;
-      return true;
+      update |= moveSentry();
+      if (_sentryLoc == _runnerLoc)
+      {
+        log_d("Runner caught by sentry");
+        // don't redraw sentry on runner
+        _setStatus(_sentryColor);
+        _resetDelay = CatchDelay;
+        return true;
+      }
     }
 
     if (update)
@@ -243,7 +256,7 @@ bool MazeRunner::moveRunner()
   }
 
   // sense and flee if sentry is near
-  deque<Location> sensedPathToSentry = findPathDfs(_runnerLoc, _sentryLoc, RunnerSense);
+  deque<Location> sensedPathToSentry = _sentryActive ? findPathDfs(_runnerLoc, _sentryLoc, RunnerSense) : deque<Location>();
   if (sensedPathToSentry.size() > 0)
   {
     _runnerSentryKnownLoc = _sentryLoc;
@@ -267,7 +280,7 @@ bool MazeRunner::moveRunner()
     Location prevRunnerLoc = _runnerLoc;
     _runnerLoc = _runnerPath.front();
     _runnerPath.pop_front();
-    _runnerCooldown = RunnerSpeed;
+    _runnerCooldown = _sentryActive ? RunnerSpeed : 0; // no need to delay with no sentry
     log_v("Moved runner from (%d,%d) to (%d,%d)", prevRunnerLoc.x, prevRunnerLoc.y, _runnerLoc.x, _runnerLoc.y);
     return true;
   }
@@ -277,8 +290,9 @@ bool MazeRunner::moveRunner()
 
 bool MazeRunner::moveSentry()
 {
-  if (_sentryColor == _pathColor)
+  if (!_sentryActive)
   {
+    log_w("Sentry is inactive");
     return false;
   }
 
@@ -410,22 +424,27 @@ void MazeRunner::generateMaze()
     }
   }
 
-  int wallsRemoved = 0;
-  maxCycles = 1000;
-  while (wallsRemoved < _mazeExtraWallsToRemove && maxCycles-- > 0)
+  if (_sentryActive)
   {
-    int x = random(_width);
-    int y = random(_height);
-    if (isWall(x, y) && getAdjacentWallAndBorderCount(x, y) >= 2)
-    {
-      _mazeWalls[y][x] = false;
-      wallsRemoved++;
-    }
-  }
+    log_d("Removing extra walls for sentry");
 
-  if (maxCycles <= 0)
-  {
-    log_e("Failed to remove extra walls");
+    int wallsRemoved = 0;
+    maxCycles = 1000;
+    while (wallsRemoved < _mazeExtraWallsToRemove && maxCycles-- > 0)
+    {
+      int x = random(_width);
+      int y = random(_height);
+      if (isWall(x, y) && getAdjacentWallAndBorderCount(x, y) >= 2)
+      {
+        _mazeWalls[y][x] = false;
+        wallsRemoved++;
+      }
+    }
+
+    if (maxCycles <= 0)
+    {
+      log_e("Failed to remove extra walls");
+    }
   }
 
   log_d("Maze generation complete");
@@ -444,7 +463,7 @@ void MazeRunner::placeRunner()
       log_d("Runner stays at prev exit loc at (%d,%d)", _runnerLoc.x, _runnerLoc.y);
       return;
     }
-    else if (_runnerLoc == _sentryLoc)
+    else if (_sentryActive && _runnerLoc == _sentryLoc)
     {
       log_d("Runner stays at prev sentry loc at (%d,%d)", _runnerLoc.x, _runnerLoc.y);
       return;
@@ -471,8 +490,9 @@ void MazeRunner::placeRunner()
 
 void MazeRunner::placeSentry()
 {
-  if (_sentryColor == _pathColor)
+  if (!_sentryActive)
   {
+    log_w("Sentry is inactive");
     return;
   }
 
