@@ -28,7 +28,7 @@ class Matrix13x9TaskHandler : public DisplayTaskHandler
 {
 private:
   static const uint8_t I2C_ADDR = IS3741_ADDR_DEFAULT;
-  static const uint8_t TASK_PRIORITY = 5;
+  static const uint8_t TASK_PRIORITY = 9; // second highest priority
   static const uint8_t WIDTH = 13;
   static const uint8_t HEIGHT = 9;
 
