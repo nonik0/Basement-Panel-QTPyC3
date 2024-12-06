@@ -4,32 +4,31 @@
 
 #include <Fonts/TomThumb.h>
 #include "Font3x4N.h"
-#include "task_handler.h"
-
-extern volatile bool display;
+#include "display_task_handler.h"
 
 static const uint16_t ShuffleColors[3] = {
     Adafruit_IS31FL3741::color565(0xBB, 0x30, 0x00),
     Adafruit_IS31FL3741::color565(0xAA, 0x15, 0x00),
     Adafruit_IS31FL3741::color565(0xAA, 0x05, 0x00)};
 
-class Matrix13x9TaskHandler : public TaskHandler
+struct ShufflePixel
+{
+  uint16_t color;
+  int x, y;                  // Current position
+  int destX, destY;          // Final position for text
+  int velX, velY;            // Velocity (-1, 0, 1 for X and Y)
+  int speed;                 // Speed of the pixel (how often it moves)
+  int moveCounter;           // Counter to control the speed
+  int stepsInSameDirection;  // Counter for steps in the same direction
+  int maxSteps;              // Maximum steps before changing direction
+  bool reachedFinalPosition; // If pixel has reached final position
+};
+
+class Matrix13x9TaskHandler : public DisplayTaskHandler
 {
 private:
-  struct ShufflePixel
-  {
-    uint16_t color;
-    int x, y;                  // Current position
-    int destX, destY;          // Final position for text
-    int velX, velY;            // Velocity (-1, 0, 1 for X and Y)
-    int speed;                 // Speed of the pixel (how often it moves)
-    int moveCounter;           // Counter to control the speed
-    int stepsInSameDirection;  // Counter for steps in the same direction
-    int maxSteps;              // Maximum steps before changing direction
-    bool reachedFinalPosition; // If pixel has reached final position
-  };
-
   static const uint8_t I2C_ADDR = IS3741_ADDR_DEFAULT;
+  static const uint8_t TASK_PRIORITY = 5;
   static const uint8_t WIDTH = 13;
   static const uint8_t HEIGHT = 9;
 
@@ -85,7 +84,7 @@ bool Matrix13x9TaskHandler::createTask()
   _matrix.setTextWrap(false);
   _matrix.setFont(&Font3x4N);
 
-  xTaskCreate(taskWrapper, "Matrix13x9Task", 4096, this, 2, &_taskHandle);
+  xTaskCreate(taskWrapper, "Matrix13x9Task", 4096, this, TASK_PRIORITY, &_taskHandle);
   log_d("Matrix initialized and task started");
 
   return true;
@@ -98,7 +97,7 @@ void Matrix13x9TaskHandler::task(void *parameters)
   bool isEnabled = true;
   while (1)
   {
-    if (!display)
+    if (!_display)
     {
       if (isEnabled)
       {

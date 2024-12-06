@@ -3,14 +3,14 @@
 
 #include <Adafruit_LEDBackpack.h>
 
-#include "task_handler.h"
+#include "display_task_handler.h"
 
-extern volatile bool display;
 
-class Matrix8x8MTaskHandler : public TaskHandler
+class Matrix8x8MTaskHandler : public DisplayTaskHandler
 {
 private:
   static const uint8_t I2C_ADDR = 0x71;
+  static const uint8_t TASK_PRIORITY = 5;
   static const uint8_t REFRESH_TIME = 15;
   static const uint8_t BASE_DELAY = 20;
   static const uint8_t WIDTH = 8;
@@ -61,7 +61,7 @@ bool Matrix8x8MTaskHandler::createTask()
     }
   }
 
-  xTaskCreate(taskWrapper, "Matrix8x8MTask", 4096, this, 2, &_taskHandle);
+  xTaskCreate(taskWrapper, "Matrix8x8MTask", 4096, this, TASK_PRIORITY, &_taskHandle);
   log_d("Matrix initialized and task started");
 
   return true;
@@ -73,7 +73,7 @@ void Matrix8x8MTaskHandler::task(void *parameters)
 
   while (1)
   {
-    if (!display)
+    if (!_display)
     {
       matrix.fillScreen(LED_OFF);
       matrix.writeDisplay();

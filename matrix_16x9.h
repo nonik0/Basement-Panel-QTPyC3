@@ -3,14 +3,14 @@
 #include <Adafruit_IS31FL3731.h>
 
 #include "Font3x4N.h"
-#include "task_handler.h"
+#include "display_task_handler.h"
 
-extern volatile bool display;
 
-class Matrix16x9TaskHandler : public TaskHandler
+class Matrix16x9TaskHandler : public DisplayTaskHandler
 {
 private:
     static const uint8_t I2C_ADDR = ISSI_ADDR_DEFAULT;
+    static const uint8_t TASK_PRIORITY = 10; // highest priority of matrix tasks for smooth animation
     static const uint8_t WIDTH = 16;
     static const uint8_t HEIGHT = 9;
     static constexpr const char *TAG = "Matrix16x9TaskHandler";
@@ -55,7 +55,7 @@ bool Matrix16x9TaskHandler::createTask()
     strcpy(_message, "123");
     initializeMessagePixels();
 
-    xTaskCreate(taskWrapper, "Matrix16x9Task", 4096, this, 1, &_taskHandle); // highest priority of tasks for smooth animation: TODO: parameterize
+    xTaskCreate(taskWrapper, "Matrix16x9Task", 4096, this, TASK_PRIORITY, &_taskHandle);
     log_d("Matrix initialized and task started");
 
     return true;
@@ -63,7 +63,7 @@ bool Matrix16x9TaskHandler::createTask()
 
 void Matrix16x9TaskHandler::setMessage(const char *message)
 {
-    TaskHandler::setMessage(message);
+    DisplayTaskHandler::setMessage(message);
     _isNewMessage = true; // signals to task to reinitialize message after scanning
 }
 
@@ -73,7 +73,7 @@ void Matrix16x9TaskHandler::task(void *parameters)
 
     while (1)
     {
-        if (!display)
+        if (!_display)
         {
             _matrix.clear();
             delay(100);

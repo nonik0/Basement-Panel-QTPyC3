@@ -3,8 +3,8 @@
 #include <Adafruit_seesaw.h>
 #include <vector>
 
+#include "display_task_handler.h"
 #include "matrix_16x9.h"
-#include "task_handler.h"
 
 #define SS_ATTINY_LED_PIN 10
 #define SS_ATTINY_HUM_PIN 15
@@ -19,14 +19,14 @@
 
 using namespace std;
 
-extern volatile bool display;
-extern Matrix16x9TaskHandler matrix16x9TaskHandler;
-TaskHandler *matrixTaskHandler = &matrix16x9TaskHandler;
+extern Matrix16x9TaskHandler matrix16x9;
+DisplayTaskHandler *matrixTaskHandler = &matrix16x9;
 
-class AttinyTaskHandler : public TaskHandler
+class AttinyTaskHandler : public DisplayTaskHandler
 {
 private:
     static const uint8_t I2C_ADDR = SEESAW_ADDRESS;
+    static const uint8_t TASK_PRIORITY = 3; // lower priority than matrix tasks
     const size_t AverageCount = 5; // avg of last X readings
     const size_t MaxCount = 10;   // max of last X readings
 
@@ -71,7 +71,7 @@ bool AttinyTaskHandler::createTask()
     attinySs.pinMode(SS_ATTINY_LED_PIN, OUTPUT);
     // analog setup not needed?
 
-    xTaskCreate(taskWrapper, "AttinyTask", 4096, this, 10, &_taskHandle); // lower priority than matrix tasks
+    xTaskCreate(taskWrapper, "AttinyTask", 4096, this, TASK_PRIORITY, &_taskHandle);
 
     log_d("Attiny setup complete");
     return true;
@@ -178,3 +178,16 @@ uint16_t AttinyTaskHandler::getMaxGasReading()
     }
     return max;
 }
+
+// TODO: still need REST endpoint?
+//   void restSensors()
+// {
+//   String response = "{";
+//   response += "\"humidityAvg\": " + String(attinyTaskHandler.getWeightedHumidityReading()) + ",";
+//   response += "\"humidityRdg\": " + String(attinyTaskHandler.getLastHumidityReading()) + ",";
+//   response += "\"gasMax\": " + String(attinyTaskHandler.getMaxGasReading()) + ",";
+//   response += "\"gasRdg\": " + String(attinyTaskHandler.getLastGasReading());
+//   response += "}";
+
+//   restServer.send(200, "application/json", response);
+// }

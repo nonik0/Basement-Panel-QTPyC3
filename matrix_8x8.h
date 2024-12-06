@@ -7,11 +7,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "task_handler.h"
+#include "display_task_handler.h"
 
 using namespace std;
 
-extern volatile bool display;
 
 struct Direction
 {
@@ -53,10 +52,11 @@ const Direction Up = {0, -1};
 const Direction Down = {0, 1};
 const Direction Directions[] = {Left, Right, Up, Down};
 
-class Matrix8x8TaskHandler : public TaskHandler
+class Matrix8x8TaskHandler : public DisplayTaskHandler
 {
 private:
   static const uint8_t I2C_ADDR = 0x70;
+  static const uint8_t TASK_PRIORITY = 5;
   static const uint8_t WIDTH = 8;
   static const uint8_t HEIGHT = 8;
 
@@ -111,7 +111,7 @@ bool Matrix8x8TaskHandler::createTask()
 
   mazeRunnerInit();
 
-  xTaskCreate(taskWrapper, "Matrix8x8Task", 4096, this, 2, &_taskHandle);
+  xTaskCreate(taskWrapper, "Matrix8x8Task", 4096, this, TASK_PRIORITY, &_taskHandle);
 
   log_d("Matrix setup complete");
 
@@ -124,7 +124,7 @@ void Matrix8x8TaskHandler::task(void *parameters)
 
   while (1)
   {
-    if (!display)
+    if (!_display)
     {
       matrix.fillScreen(LED_OFF);
       matrix.writeDisplay();
