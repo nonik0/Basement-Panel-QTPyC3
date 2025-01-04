@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Adafruit_LEDBackpack.h>
 #include <Adafruit_seesaw.h>
 #include <vector>
 
@@ -26,14 +27,18 @@ class AttinyTaskHandler : public DisplayTaskHandler
 {
 private:
     static const uint8_t I2C_ADDR = SEESAW_ADDRESS;
+    static const uint8_t I2C_ADDR_BARGRAPH = 0x72;
     static const uint8_t TASK_PRIORITY = 3; // lower priority than matrix tasks
-    const size_t AverageCount = 5; // avg of last X readings
-    const size_t MaxCount = 10;   // max of last X readings
+    const size_t AverageCount = 5;          // avg of last X readings
+    const size_t MaxCount = 10;             // max of last X readings
+    const size_t BargraphCount = 24;
 
     Adafruit_seesaw attinySs;
+    Adafruit_24bargraph bargraph;
     vector<uint16_t> humidityReadings;
     vector<uint16_t> gasReadings;
     bool ledState = false;
+    bool bargraphInit = false;
 
     bool saveOverriddenMessage = false;
     const unsigned long MinOverrideTime = 10000;
@@ -69,6 +74,18 @@ bool AttinyTaskHandler::createTask()
     }
 
     attinySs.pinMode(SS_ATTINY_LED_PIN, OUTPUT);
+
+    if (bargraph.begin(I2C_ADDR_BARGRAPH))
+    {
+        bargraph.begin(I2C_ADDR_BARGRAPH);
+        bargraph.setBrightness(5); //[0-15]
+        bargraphInit = true;
+    }
+    else
+    {
+        log_e("bargraph not found");
+    }
+
     // analog setup not needed?
 
     xTaskCreate(taskWrapper, "AttinyTask", 4096, this, TASK_PRIORITY, &_taskHandle);
@@ -90,7 +107,6 @@ void AttinyTaskHandler::task(void *parameters)
         humidityReading = readSensor(SS_ATTINY_HUM_PIN, humidityReadings, AverageCount);
         delay(500);
 
-
         gasReading = readSensor(SS_ATTINY_GAS_PIN, gasReadings, MaxCount);
 
         uint16_t newMaxGasReading = getMaxGasReading();
@@ -99,6 +115,37 @@ void AttinyTaskHandler::task(void *parameters)
             maxGasReading = newMaxGasReading;
             snprintf(gasReadingStr, MaxMessageSize, "%03d", getMaxGasReading());
             matrixTaskHandler->setMessage(gasReadingStr);
+
+            if (bargraphInit)
+            {
+                uint8_t color = LED_OFF;
+                uint8_t height = 0;
+                if (maxGasReading < 200)
+                {
+                    color = LED_GREEN;
+                    height = map(maxGasReading, 0, 200, 1, BargraphCount);
+                }
+                else if (maxGasReading < 400)
+                {
+                    color = LED_YELLOW;
+                    height = map(maxGasReading, 200, 400, 1, BargraphCount);
+                }
+                else if (maxGasReading < 600)
+                {
+                    color = LED_RED;
+                    height = map(maxGasReading, 400, 600, 1, BargraphCount);
+                }
+                else
+                {
+                    // TODO
+                }
+
+                for (int i = 0; i < BargraphCount; i++)
+                {
+                    bargraph.setBar(BargraphCount - i - 1, i < height ? color : LED_OFF);
+                }
+                bargraph.writeDisplay();
+            }
         }
 
         delay(500);
