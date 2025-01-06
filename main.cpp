@@ -1,5 +1,5 @@
 
-#include "attiny.h"
+#include "breathalyzer.h"
 #include "matrix_5x5.h"
 #include "matrix_8x8.h"
 #include "matrix_8x8M.h"
@@ -7,7 +7,7 @@
 #include "matrix_16x9.h"
 #include "wifi_services.h"
 
-AttinyTaskHandler attiny;
+BreathalyzerTaskHandler breathalyzer;
 Matrix5x5TaskHandler matrix5x5;
 Matrix8x8TaskHandler matrix8x8;
 Matrix8x8MTaskHandler matrix8x8M;
@@ -26,7 +26,7 @@ void setup()
 
   wifiServices.setup(DEVICE_NAME);
 
-  attiny.createTask();
+  breathalyzer.createTask();
   matrix5x5.createTask();
   matrix8x8.createTask();
   matrix8x8M.createTask();

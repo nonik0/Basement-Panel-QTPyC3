@@ -23,7 +23,7 @@ using namespace std;
 extern Matrix16x9TaskHandler matrix16x9;
 DisplayTaskHandler *matrixTaskHandler = &matrix16x9;
 
-class AttinyTaskHandler : public DisplayTaskHandler
+class BreathalyzerTaskHandler : public DisplayTaskHandler
 {
 private:
     static const uint8_t I2C_ADDR = SEESAW_ADDRESS;
@@ -45,7 +45,7 @@ private:
     unsigned long messageOverriddenMillis = 0;
 
 public:
-    AttinyTaskHandler() {}
+    BreathalyzerTaskHandler() {}
     bool createTask() override;
     uint16_t getLastHumidityReading() { return humidityReadings.back(); }
     uint16_t getLastGasReading() { return gasReadings.back(); }
@@ -58,7 +58,7 @@ private:
     void task(void *parameters) override;
 };
 
-bool AttinyTaskHandler::createTask()
+bool BreathalyzerTaskHandler::createTask()
 {
     log_d("Starting ATtiny setup");
 
@@ -95,7 +95,7 @@ bool AttinyTaskHandler::createTask()
     return true;
 }
 
-void AttinyTaskHandler::task(void *parameters)
+void BreathalyzerTaskHandler::task(void *parameters)
 {
     log_d("Starting AttinyTask");
 
@@ -119,8 +119,14 @@ void AttinyTaskHandler::task(void *parameters)
             snprintf(readingStr, MaxMessageSize, "%03d", getWeightedHumidityReading());
             matrixTaskHandler->setMessage(readingStr);
 
-            if (bargraphInit && !animation && avgHumidityReading > 30) {
+            if (bargraphInit && !animation && avgHumidityReading > 30)
+            {
+                animation = true;
                 breathalyzerAnimation();
+            }
+            else if (animation && avgHumidityReading < 30)
+            {
+                animation = false;
             }
         }
         delay(500);
@@ -219,7 +225,7 @@ void AttinyTaskHandler::task(void *parameters)
     }
 }
 
-uint16_t AttinyTaskHandler::readSensor(uint8_t pin, vector<uint16_t> &readings, size_t maxCount)
+uint16_t BreathalyzerTaskHandler::readSensor(uint8_t pin, vector<uint16_t> &readings, size_t maxCount)
 {
     attinySs.digitalWrite(SS_ATTINY_LED_PIN, ledState);
 
@@ -236,7 +242,7 @@ uint16_t AttinyTaskHandler::readSensor(uint8_t pin, vector<uint16_t> &readings, 
     return reading;
 }
 
-uint16_t AttinyTaskHandler::getWeightedHumidityReading()
+uint16_t BreathalyzerTaskHandler::getWeightedHumidityReading()
 {
     uint32_t sum = 0;
     for (const auto &reading : humidityReadings)
@@ -246,7 +252,7 @@ uint16_t AttinyTaskHandler::getWeightedHumidityReading()
     return sum / humidityReadings.size();
 }
 
-uint16_t AttinyTaskHandler::getMaxGasReading()
+uint16_t BreathalyzerTaskHandler::getMaxGasReading()
 {
     uint16_t max = 0;
     for (uint16_t reading : gasReadings)
@@ -259,23 +265,73 @@ uint16_t AttinyTaskHandler::getMaxGasReading()
     return max;
 }
 
-void AttinyTaskHandler::breathalyzerAnimation()
+void BreathalyzerTaskHandler::breathalyzerAnimation()
 {
-    const int DrunkReadingThreshold = 600;
+    const int TipsyReadingThreshold = 600;
+    const int DrunkReadingThreshold = 800;
 
     bargraph.clear();
     bargraph.writeDisplay();
 
+    // quick animation to show breath detected
+    for (int i = BargraphCount - 1; i >= 0; i--)
+    {
+        bargraph.setBar(i, LED_YELLOW);
+        bargraph.writeDisplay();
+        delay(50);
+    }
+    for (int i = 0; i < BargraphCount; i++)
+    {
+        bargraph.setBar(i, LED_OFF);
+        bargraph.writeDisplay();
+        delay(50);
+    }
+
+    uint8_t barHeight = 0;
+    uint16_t maxGasReading = getMaxGasReading();
+    unsigned long lastIncreaseMillis = millis();
+    while (millis() - lastIncreaseMillis < 5000)
+    {
+        // keep reading sensor for max gas reading
+        uint16_t gasReading = readSensor(SS_ATTINY_GAS_PIN, gasReadings, MaxCount);
+        uint16_t newMaxGasReading = getMaxGasReading();
+        if (newMaxGasReading > maxGasReading)
+        {
+            maxGasReading = newMaxGasReading;
+        }
+
+        uint8_t gasReadingBarHeight = map(maxGasReading, 0, 1024, 0, BargraphCount);
+        if (gasReadingBarHeight > barHeight)
+        {
+            uint8_t color = LED_GREEN;
+            if (maxGasReading > TipsyReadingThreshold)
+            {
+                color = LED_YELLOW;
+            }
+            else if (maxGasReading > DrunkReadingThreshold)
+            {
+                color = LED_RED;
+            }
+            bargraph.setBar(BargraphCount - barHeight - 1, color);
+            barHeight++;
+            bargraph.writeDisplay();
+            lastIncreaseMillis = millis();
+        }
+
+        delay(750);
+    }
+
     // TODO
 }
+
 // TODO: still need REST endpoint?
 //   void restSensors()
 // {
 //   String response = "{";
-//   response += "\"humidityAvg\": " + String(attinyTaskHandler.getWeightedHumidityReading()) + ",";
-//   response += "\"humidityRdg\": " + String(attinyTaskHandler.getLastHumidityReading()) + ",";
-//   response += "\"gasMax\": " + String(attinyTaskHandler.getMaxGasReading()) + ",";
-//   response += "\"gasRdg\": " + String(attinyTaskHandler.getLastGasReading());
+//   response += "\"humidityAvg\": " + String(BreathalyzerTaskHandler.getWeightedHumidityReading()) + ",";
+//   response += "\"humidityRdg\": " + String(BreathalyzerTaskHandler.getLastHumidityReading()) + ",";
+//   response += "\"gasMax\": " + String(BreathalyzerTaskHandler.getMaxGasReading()) + ",";
+//   response += "\"gasRdg\": " + String(BreathalyzerTaskHandler.getLastGasReading());
 //   response += "}";
 
 //   restServer.send(200, "application/json", response);
