@@ -11,13 +11,6 @@
 #define SS_ATTINY_HUM_PIN 15
 #define SS_ATTINY_GAS_PIN 16
 
-// readings:
-// humidity stable: 20-30
-// humidity breath: ??
-// gas stable: <240
-// drunk gas: >300
-// ~.25oz: 600?
-
 using namespace std;
 
 extern Matrix16x9TaskHandler matrix16x9;
@@ -32,6 +25,14 @@ private:
     const size_t AverageCount = 5;          // avg of last X readings
     const size_t MaxCount = 10;             // max of last X readings
     const size_t BargraphCount = 24;
+
+    const uint16_t BreathHumidityReadingThreshold = 35;
+    const uint16_t StableGasReading = 200;
+    const uint16_t TipsyGasReadingThreshold = 500;
+    const uint16_t DrunkGasReadingThreshold = 700;
+    const uint16_t SaturationGasReading = 800;
+    const uint8_t TipsyBarHeight = map(TipsyGasReadingThreshold, StableGasReading, SaturationGasReading, 0, BargraphCount);
+    const uint8_t DrunkBarHeight = map(DrunkGasReadingThreshold, StableGasReading, SaturationGasReading, 0, BargraphCount);
 
     Adafruit_seesaw attinySs;
     Adafruit_24bargraph bargraph;
@@ -60,7 +61,7 @@ private:
 
 bool BreathalyzerTaskHandler::createTask()
 {
-    log_d("Starting ATtiny setup");
+    log_d("Starting Breathalyzer setup");
 
     if (_taskHandle != NULL)
     {
@@ -91,13 +92,13 @@ bool BreathalyzerTaskHandler::createTask()
 
     xTaskCreate(taskWrapper, "AttinyTask", 4096, this, TASK_PRIORITY, &_taskHandle);
 
-    log_d("Attiny setup complete");
+    log_d("Breathalyzer setup complete");
     return true;
 }
 
 void BreathalyzerTaskHandler::task(void *parameters)
 {
-    log_d("Starting AttinyTask");
+    log_d("Starting BreathalyzerTask");
 
     bool animation = false;
     uint16_t humidityReading = 0;
@@ -105,28 +106,35 @@ void BreathalyzerTaskHandler::task(void *parameters)
     uint16_t gasReading = 0;
     uint16_t maxGasReading = 0;
     uint8_t bargraphHeight = 0;
-    unsigned long bargraphLastUpdateMillis = 0;
+    unsigned long bargraphLastUpdateMillis = millis();
     char readingStr[MaxMessageSize];
     while (1)
     {
-        bool showHumidity = millis() % 10000 < 5000;
-
         humidityReading = readSensor(SS_ATTINY_HUM_PIN, humidityReadings, AverageCount);
         uint16_t newAvgHumidityReading = getWeightedHumidityReading();
-        if (newAvgHumidityReading != avgHumidityReading && showHumidity)
+        bool showHumidity = newAvgHumidityReading > BreathHumidityReadingThreshold && millis() % 10000 < 5000;
+        if (newAvgHumidityReading != avgHumidityReading)
         {
             avgHumidityReading = newAvgHumidityReading;
-            snprintf(readingStr, MaxMessageSize, "%03d", getWeightedHumidityReading());
-            matrixTaskHandler->setMessage(readingStr);
 
-            if (bargraphInit && !animation && avgHumidityReading > 30)
+            if (showHumidity)
             {
-                animation = true;
-                breathalyzerAnimation();
+                snprintf(readingStr, MaxMessageSize, "%03d", getWeightedHumidityReading());
+                matrixTaskHandler->setMessage(readingStr);
             }
-            else if (animation && avgHumidityReading < 30)
+
+            if (bargraphInit)
             {
-                animation = false;
+                if (avgHumidityReading > BreathHumidityReadingThreshold && !animation)
+                {
+                    animation = true;
+                    breathalyzerAnimation();
+                }
+                // humidity level needs to fall below threshold again to reinitiate animation
+                else if (animation && avgHumidityReading < BreathHumidityReadingThreshold)
+                {
+                    animation = false;
+                }
             }
         }
         delay(500);
@@ -135,49 +143,33 @@ void BreathalyzerTaskHandler::task(void *parameters)
         uint16_t newMaxGasReading = getMaxGasReading();
         if (newMaxGasReading != maxGasReading)
         {
+            maxGasReading = newMaxGasReading;
+
             if (!showHumidity)
             {
-                maxGasReading = newMaxGasReading;
-                snprintf(readingStr, MaxMessageSize, "%03d", getMaxGasReading());
+                snprintf(readingStr, MaxMessageSize, "%03d", maxGasReading);
                 matrixTaskHandler->setMessage(readingStr);
             }
 
             if (bargraphInit)
             {
-                uint8_t color = LED_OFF;
-                uint8_t height = 0;
-                if (maxGasReading < 200)
-                {
-                    color = LED_GREEN;
-                    height = map(maxGasReading, 0, 200, 1, BargraphCount);
-                }
-                else if (maxGasReading < 400)
-                {
-                    color = LED_YELLOW;
-                    height = map(maxGasReading, 200, 400, 1, BargraphCount);
-                }
-                else if (maxGasReading < 600)
-                {
-                    color = LED_RED;
-                    height = map(maxGasReading, 400, 600, 1, BargraphCount);
-                }
-                else
-                {
-                    // TODO
-                }
+                uint8_t color = LED_YELLOW;
+                uint8_t gasReadingHeight = map(maxGasReading, StableGasReading, SaturationGasReading, 0, BargraphCount);
 
                 if (millis() - bargraphLastUpdateMillis > 500)
                 {
                     bargraphLastUpdateMillis = millis();
-                    if (bargraphHeight < height)
+                    if (bargraphHeight < gasReadingHeight)
                     {
                         bargraphHeight++;
                     }
-                    else if (bargraphHeight > height)
+                    else if (bargraphHeight > gasReadingHeight)
                     {
                         bargraphHeight--;
                     }
 
+                    bargraph.setBar(BargraphCount - 1 - TipsyBarHeight, LED_GREEN);
+                    bargraph.setBar(BargraphCount - 1 - DrunkBarHeight, LED_RED);
                     for (int i = 0; i < BargraphCount; i++)
                     {
                         bargraph.setBar(BargraphCount - i - 1, i < bargraphHeight ? color : LED_OFF);
@@ -267,9 +259,6 @@ uint16_t BreathalyzerTaskHandler::getMaxGasReading()
 
 void BreathalyzerTaskHandler::breathalyzerAnimation()
 {
-    const int TipsyReadingThreshold = 600;
-    const int DrunkReadingThreshold = 800;
-
     bargraph.clear();
     bargraph.writeDisplay();
 
@@ -300,15 +289,15 @@ void BreathalyzerTaskHandler::breathalyzerAnimation()
             maxGasReading = newMaxGasReading;
         }
 
-        uint8_t gasReadingBarHeight = map(maxGasReading, 0, 1024, 0, BargraphCount);
+        uint8_t gasReadingBarHeight = map(maxGasReading, StableGasReading, SaturationGasReading, 0, BargraphCount);
         if (gasReadingBarHeight > barHeight)
         {
             uint8_t color = LED_GREEN;
-            if (maxGasReading > TipsyReadingThreshold)
+            if (maxGasReading > TipsyGasReadingThreshold)
             {
                 color = LED_YELLOW;
             }
-            else if (maxGasReading > DrunkReadingThreshold)
+            else if (maxGasReading > DrunkGasReadingThreshold)
             {
                 color = LED_RED;
             }
@@ -318,21 +307,6 @@ void BreathalyzerTaskHandler::breathalyzerAnimation()
             lastIncreaseMillis = millis();
         }
 
-        delay(750);
+        delay(500);
     }
-
-    // TODO
 }
-
-// TODO: still need REST endpoint?
-//   void restSensors()
-// {
-//   String response = "{";
-//   response += "\"humidityAvg\": " + String(BreathalyzerTaskHandler.getWeightedHumidityReading()) + ",";
-//   response += "\"humidityRdg\": " + String(BreathalyzerTaskHandler.getLastHumidityReading()) + ",";
-//   response += "\"gasMax\": " + String(BreathalyzerTaskHandler.getMaxGasReading()) + ",";
-//   response += "\"gasRdg\": " + String(BreathalyzerTaskHandler.getLastGasReading());
-//   response += "}";
-
-//   restServer.send(200, "application/json", response);
-// }
