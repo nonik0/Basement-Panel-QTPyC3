@@ -35,6 +35,8 @@ void setup()
   wifiServices.createTask();
 
   wifiServices.registerSetDisplayCallback([&](bool state)
+                                          { breathalyzer.setDisplay(state); });
+  wifiServices.registerSetDisplayCallback([&](bool state)
                                           { matrix5x5.setDisplay(state); });
   wifiServices.registerSetDisplayCallback([&](bool state)
                                           { matrix8x8.setDisplay(state); });

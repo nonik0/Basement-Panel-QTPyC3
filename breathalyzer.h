@@ -153,26 +153,29 @@ void BreathalyzerTaskHandler::task(void *parameters)
 
             if (bargraphInit)
             {
-                uint8_t color = LED_YELLOW;
-                uint8_t gasReadingHeight = map(maxGasReading, StableGasReading, SaturationGasReading, 0, BargraphCount);
 
                 if (millis() - bargraphLastUpdateMillis > 500)
                 {
                     bargraphLastUpdateMillis = millis();
-                    if (bargraphHeight < gasReadingHeight)
-                    {
-                        bargraphHeight++;
-                    }
-                    else if (bargraphHeight > gasReadingHeight)
-                    {
-                        bargraphHeight--;
-                    }
+                    bargraph.clear();
 
-                    bargraph.setBar(BargraphCount - 1 - TipsyBarHeight, LED_GREEN);
-                    bargraph.setBar(BargraphCount - 1 - DrunkBarHeight, LED_RED);
-                    for (int i = 0; i < BargraphCount; i++)
+                    if (_display)
                     {
-                        bargraph.setBar(BargraphCount - i - 1, i < bargraphHeight ? color : LED_OFF);
+                        uint8_t gasReadingHeight = map(maxGasReading, StableGasReading, SaturationGasReading, 0, BargraphCount);
+                        if (bargraphHeight < gasReadingHeight)
+                        {
+                            bargraphHeight++;
+                        }
+                        else if (bargraphHeight > gasReadingHeight)
+                        {
+                            bargraphHeight--;
+                        }
+
+                        for (int i = 0; i < BargraphCount; i++)
+                        {
+                            // felt like one-lining this
+                            bargraph.setBar(BargraphCount - i - 1, (i < bargraphHeight) ? LED_YELLOW : ((i == TipsyBarHeight) ? LED_GREEN : (i == DrunkBarHeight ? LED_RED : LED_OFF)));
+                        }
                     }
                     bargraph.writeDisplay();
                 }
@@ -180,37 +183,6 @@ void BreathalyzerTaskHandler::task(void *parameters)
         }
 
         delay(500);
-
-        // if (saveOverriddenMessage) {
-        //     // override matrix message when gas detected
-        //     if (getMaxGasReading() > 300) // can optimize avg calculation by keeping a sum and subtracting the oldest reading
-        //     {
-        //         // first high reading, save existing message
-        //         if (maxGasReading == 0) {
-        //             strncpy(_message, matrixTaskHandler->getMessage(), MaxMessageSize);
-        //         }
-
-        //         // update whenever reading increases
-        //         if (gasReading > maxGasReading) {
-        //             char drunkReading[MaxMessageSize];
-        //             snprintf(drunkReading, MaxMessageSize, "DRUNK:%d", gasReading); // TODO: calibrate and scale to BAC
-        //             matrixTaskHandler->setMessage(drunkReading);
-        //             maxGasReading = gasReading;
-        //             messageOverriddenMillis = millis();
-        //         }
-        //     }
-        //     else if (maxGasReading > 0 && millis() - messageOverriddenMillis > MinOverrideTime)
-        //     {
-        //         matrixTaskHandler->setMessage(_message);
-        //         maxGasReading = 0;
-        //     }
-        // }
-        // else {
-        // set gas reading as matrix message
-        // char gasReadingStr[MaxMessageSize];
-        // snprintf(gasReadingStr, MaxMessageSize, "%03d", gasReading);
-        // matrixTaskHandler->setMessage(gasReadingStr);
-        // }
 
         // led alternates with each loop
         ledState = !ledState;
