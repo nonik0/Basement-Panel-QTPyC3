@@ -48,7 +48,7 @@ bool Matrix8x8MTaskHandler::createTask()
     return false;
   }
 
-  matrix.setBrightness(5);
+  matrix.setBrightness(2);
 
   for (int y = 0; y < HEIGHT; y++)
   {

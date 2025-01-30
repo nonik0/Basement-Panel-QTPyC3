@@ -16,7 +16,7 @@ private:
     static constexpr const char *TAG = "Matrix16x9TaskHandler";
     static const uint8_t ScanWidth = 7;
 
-    uint8_t ScanVals[7] = {120, 40, 20, 5, 2, 1, 0};
+    uint8_t ScanVals[7] = {60, 20, 8, 4, 2, 1, 0};
     // uint8_t sweep[] = {1, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 60, 40, 30, 20, 15, 10, 8, 6, 4, 3, 2, 1};
 
     Adafruit_IS31FL3731 _matrix = Adafruit_IS31FL3731();

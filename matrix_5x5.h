@@ -19,7 +19,7 @@ private:
         NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT + NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
         NEO_GRB + NEO_KHZ800);
     const uint16_t _colors[3] = {
-        _matrix.Color(255, 55, 0), _matrix.Color(255, 110, 0), _matrix.Color(255, 165, 0)};
+        _matrix.Color(0xFF, 0x3F, 0x00), _matrix.Color(0xFF, 0x7F, 0x00), _matrix.Color(0xFF, 0xBF, 0x00)};
     uint16_t _message_width;       // Computed in setup() below
     int _x = _matrix.width();  // Start with message off right edge
     int _y = _matrix.height(); // With custom fonts, y is the baseline, not top
@@ -46,7 +46,7 @@ bool Matrix5x5TaskHandler::createTask()
     strcpy(_message, "BEAU IN TOW!");
 
     _matrix.begin();
-    _matrix.setBrightness(15);
+    _matrix.setBrightness(5);
     _matrix.setFont(&TomThumb);
     _matrix.setTextWrap(false);
     _matrix.setTextColor(_colors[0]);
