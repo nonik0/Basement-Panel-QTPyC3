@@ -28,7 +28,7 @@ private:
 public:
     Matrix5x5TaskHandler() {}
     bool createTask() override;
-    void setDisplay(bool displayState) override;
+    void setMessage(const char *message) override;
 
 private:
     void task(void *parameters) override;
@@ -62,12 +62,18 @@ bool Matrix5x5TaskHandler::createTask()
     return true;
 }
 
-void Matrix5x5TaskHandler::setDisplay(bool displayState)
+void Matrix5x5TaskHandler::setMessage(const char *message)
 {
-    DisplayTaskHandler::setDisplay(displayState);
+    DisplayTaskHandler::setMessage(message);
     int16_t d1;
     uint16_t d2;
     _matrix.getTextBounds(_message, 0, 0, &d1, &d1, &_message_width, &d2);
+
+    // modify _message to be uppercase
+    for (int i = 0; i < strlen(_message); i++)
+    {
+        _message[i] = toupper(_message[i]);
+    }
 }
 
 void Matrix5x5TaskHandler::task(void *parameters)
