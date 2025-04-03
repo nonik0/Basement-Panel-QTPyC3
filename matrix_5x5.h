@@ -28,6 +28,7 @@ private:
 public:
     Matrix5x5TaskHandler() {}
     bool createTask() override;
+    void setDisplay(bool displayState) override;
 
 private:
     void task(void *parameters) override;
@@ -59,6 +60,14 @@ bool Matrix5x5TaskHandler::createTask()
     log_d("Matrix setup complete");
 
     return true;
+}
+
+void Matrix5x5TaskHandler::setDisplay(bool displayState)
+{
+    DisplayTaskHandler::setDisplay(displayState);
+    int16_t d1;
+    uint16_t d2;
+    _matrix.getTextBounds(_message, 0, 0, &d1, &d1, &_message_width, &d2);
 }
 
 void Matrix5x5TaskHandler::task(void *parameters)
