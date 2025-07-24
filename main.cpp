@@ -1,18 +1,20 @@
 
-#include "breathalyzer.h"
+// #include "breathalyzer.h"
 #include "matrix_5x5.h"
 #include "matrix_8x8.h"
 #include "matrix_8x8M.h"
 #include "matrix_13x9.h"
 #include "matrix_16x9.h"
+#include "nonik0.h"
 #include "wifi_services.h"
 
-BreathalyzerTaskHandler breathalyzer;
+// BreathalyzerTaskHandler breathalyzer;
 Matrix5x5TaskHandler matrix5x5;
 Matrix8x8TaskHandler matrix8x8;
 Matrix8x8MTaskHandler matrix8x8M;
 Matrix13x9TaskHandler matrix13x9;
 Matrix16x9TaskHandler matrix16x9;
+Nonik0TaskHandler nonik0;
 WifiServices wifiServices;
 
 void setup()
@@ -26,7 +28,7 @@ void setup()
 
   wifiServices.setup(DEVICE_NAME);
 
-  breathalyzer.createTask();
+  // breathalyzer.createTask();
   matrix5x5.createTask();
   matrix8x8.createTask();
   matrix8x8M.createTask();
@@ -34,8 +36,8 @@ void setup()
   matrix16x9.createTask();
   wifiServices.createTask();
 
-  wifiServices.registerSetDisplayCallback([&](bool state)
-                                          { breathalyzer.setDisplay(state); });
+  // wifiServices.registerSetDisplayCallback([&](bool state)
+  //                                         { breathalyzer.setDisplay(state); });
   wifiServices.registerSetDisplayCallback([&](bool state)
                                           { matrix5x5.setDisplay(state); });
   wifiServices.registerSetDisplayCallback([&](bool state)
@@ -46,6 +48,8 @@ void setup()
                                           { matrix13x9.setDisplay(state); });
   wifiServices.registerSetDisplayCallback([&](bool state)
                                           { matrix16x9.setDisplay(state); });
+  wifiServices.registerSetDisplayCallback([&](bool state)
+                                          { nonik0.setDisplay(state); });
 
   wifiServices.registerSetMessageCallback("/5x5", [](const char *message)
                                           { if (strlen(message) > 0)  matrix5x5.setMessage(message);
@@ -62,6 +66,9 @@ void setup()
   wifiServices.registerSetMessageCallback("/16x9", [](const char *message)
                                           { if (strlen(message) > 0)  matrix16x9.setMessage(message);
                                             return matrix16x9.getMessage(); });
+  wifiServices.registerSetMessageCallback("/nonik0", [](const char *message)
+                                          { if (strlen(message) > 0)  nonik0.setMessage(message);
+                                            return nonik0.getMessage(); });
 
   log_d("Setup complete");
 }
