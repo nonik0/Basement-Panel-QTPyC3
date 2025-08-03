@@ -47,7 +47,7 @@ bool Matrix5x5TaskHandler::createTask()
     strcpy(_message, "BEAU IN TOW!");
 
     _matrix.begin();
-    _matrix.setBrightness(5);
+    _matrix.setBrightness(4);
     _matrix.setFont(&TomThumb);
     _matrix.setTextWrap(false);
     _matrix.setTextColor(_colors[0]);

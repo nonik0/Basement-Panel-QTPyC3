@@ -76,8 +76,8 @@ bool Matrix13x9TaskHandler::createTask()
   }
 
   // Set brightness to max and bring controller out of shutdown state
-  _matrix.setLEDscaling(8);
-  _matrix.setGlobalCurrent(100);
+  _matrix.setLEDscaling(6);
+  _matrix.setGlobalCurrent(60);
   _matrix.fill(0);
   _matrix.enable(true); // bring out of shutdown
   _matrix.setRotation(0);

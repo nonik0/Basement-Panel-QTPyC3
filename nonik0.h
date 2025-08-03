@@ -45,25 +45,32 @@ void Nonik0TaskHandler::setMessage(const char *message)
 {
     DisplayTaskHandler::setMessage(message);
 
-    const size_t chunkSize = 31; // 32-byte, max chunk size for I2C transmission (-1 for end byte)
-    size_t messageLength = strlen(message);
-    for (size_t i = 0; i < messageLength; i += chunkSize)
-    {
-        Wire.beginTransmission(I2C_ADDR);
-        Wire.write((uint8_t)0x01);
+    Wire.beginTransmission(I2C_ADDR);
+    Wire.write((uint8_t)0x01);
+    Wire.write((const uint8_t *)message, strlen(message));
+    Wire.endTransmission();
 
-        size_t remaining = messageLength - i;
-        size_t currentChunkSize = remaining > chunkSize ? chunkSize : remaining;
+    // const size_t chunkSize = 119;
+    // //const size_t chunkSize = 3; // 32-byte, max chunk size for I2C transmission (-1 for end byte)
+    // size_t messageLength = strlen(message);
+    // for (size_t i = 0; i < messageLength; i += chunkSize)
+    // {
+    //     Wire.beginTransmission(I2C_ADDR);
+    //     Wire.write((uint8_t)0x01);
 
-        Wire.write((const uint8_t *)(message + i), currentChunkSize);
+    //     size_t remaining = messageLength - i;
+    //     size_t currentChunkSize = remaining > chunkSize ? chunkSize : remaining;
 
-        if (i + currentChunkSize >= messageLength)
-        {
-            Wire.write('\n');
-        }
+    //     Wire.write((const uint8_t *)(message + i), currentChunkSize);
 
-        Wire.endTransmission();
-    }
+    //     if (i + currentChunkSize >= messageLength)
+    //     {
+    //         Wire.write('\0');
+    //     }
+
+    //     Wire.endTransmission();
+    //     delay(10);
+    // }
 }
 
 void Nonik0TaskHandler::task(void *parameters)
